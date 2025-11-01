@@ -1,15 +1,23 @@
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+  font-family: 'Inter', 'Segoe UI', sans-serif;
+}
+
 /* Page & background */
 .pageWrapper {
   position: relative;
   min-height: 100vh;
   width: 100%;
-  overflow: hidden;
+  /* overflow: hidden; */
+  /* margin-right: 20px; */
 }
 
 .bgVideo {
   position: fixed;
   inset: 0;
-  width: 100%;
+  width: 800%;
   height: 100%;
   object-fit: cover;
   z-index: -2;
@@ -37,8 +45,8 @@
 
 /* Left section */
 .left {
-  flex: 0 0 560px;
-  max-width: 600px;
+  /* flex: 0 0 560px; */
+  /* max-width: 600px; */
   translate: -10px 0;
 }
 
@@ -63,20 +71,34 @@
 /* Right section
    Anchor the card's TOP so taller sizes grow DOWNWARD */
 .right {
-  flex: 0 1 auto;
+  /* flex: 0 1 auto; */
   display: flex;
   align-items: flex-start;         /* align card to top of its column */
   justify-content: center;
   align-self: flex-start;          /* override .main center for this column */
   width: 100%;
+  /* background-color: red; */
+  /* height: 200vh; */
 }
 
 /* Card — taller; positioned with a fixed top margin so growth adds at bottom */
+/* .card {
+  position: relative;
+  width: 580px;
+  height: 760px;                   
+  margin-top: clamp(36px, 8vh, 72px);  
+  transform-style: preserve-3d;
+  transition: transform 900ms cubic-bezier(.2,.7,.2,1);
+  perspective: 1600px;
+  will-change: transform;
+}
+.card.flipped { transform: rotateY(180deg); } */
+
 .card {
   position: relative;
   width: 580px;
-  height: 760px;                   /* taller */
-  margin-top: clamp(36px, 8vh, 72px);  /* keeps a steady top offset */
+  height: 760px;                   
+  margin-top: clamp(36px, 8vh, 72px);  
   transform-style: preserve-3d;
   transition: transform 900ms cubic-bezier(.2,.7,.2,1);
   perspective: 1600px;
@@ -85,6 +107,7 @@
 .card.flipped { transform: rotateY(180deg); }
 
 .face {
+  /* height: 80vh; */
   position: absolute;
   inset: 0;
   background: linear-gradient(180deg, rgba(255,255,255,.08), rgba(255,255,255,.02));
@@ -106,7 +129,7 @@
 .back  { transform: rotateY(180deg); }
 
 .panelTitle {
-  font-size: 1.7rem;
+  /* font-size: 1.7rem; */
   font-weight: 700;
   letter-spacing: .3px;
   margin-bottom: 6px;

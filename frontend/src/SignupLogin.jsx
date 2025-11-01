@@ -72,11 +72,11 @@ export default function SignupLogin() {
         {/* Right section */}
         <section className={styles.right}>
           <div className={cardClasses} aria-live="polite">
-            {/* FRONT — SIGN UP */}
+           
             <div className={`${styles.face} ${styles.front}`}>
               <h2 className={styles.panelTitle}>Sign Up</h2>
 
-              {/* Social sign-in (redirect flow) */}
+              
               <div className={styles.socialRow}>
                 <a
                   href="/auth/google/start"
@@ -210,7 +210,7 @@ export default function SignupLogin() {
               </form>
             </div>
 
-            {/* BACK — LOGIN */}
+          
             <div className={`${styles.face} ${styles.back}`}>
               <h2 className={styles.panelTitle}>Welcome Back</h2>
 
@@ -279,6 +279,7 @@ export default function SignupLogin() {
                 </p>
               </form>
             </div>
+            
           </div>
         </section>
       </main>
