@@ -37,6 +37,12 @@ from apis.quiz_api import (
     get_quiz_by_id,
 )
 
+from apis.user_api import (
+    get_user_by_id,
+    get_user_by_query,
+    set_session_factory_for_user,
+)
+
 # --- DB connection lives ONLY here ---
 load_dotenv()  # reads .env at project root
 DATABASE_URL = os.getenv("DATABASE_URL", "")
@@ -70,6 +76,10 @@ app.add_api_route("/auth/login",  LoginAPI(SessionLocal),  methods=["POST"])
 set_session_factory(SessionLocal)
 set_session_factory_for_flashcards(SessionLocal)
 set_session_factory_for_quiz(SessionLocal)
+set_session_factory_for_user(SessionLocal)
+
+app.add_api_route("/users/{user_id}", get_user_by_id, methods=["GET"])
+app.add_api_route("/user", get_user_by_query, methods=["GET"])
 
 # Content ingestion + read routes (function-callables)
 app.add_api_route("/addcourse", ingest_and_store_endpoint, methods=["POST"])

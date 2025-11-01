@@ -1,0 +1,85 @@
+.header {
+  position: sticky;
+  top: 0;
+  z-index: 1000;
+  height: 68px;
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  padding: 0 20px;
+  background: rgba(245, 248, 255, 0.86);
+  backdrop-filter: blur(8px);
+  border-bottom: 1px solid #e8edff;
+  box-shadow: 0 6px 24px rgba(16,34,90,.08);
+}
+
+/* Left side */
+.left {
+  display: inline-flex;
+  gap: 12px;
+  align-items: center;
+}
+.logoDot {
+  width: 14px; height: 14px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #5b8ef7, #8aa8ff);
+  box-shadow: 0 0 12px rgba(91,142,247,.5);
+}
+.textBlock {
+  display: grid;
+  line-height: 1.1;
+}
+.appName {
+  font-size: 13px;
+  color: #516099;
+  font-weight: 800;
+  letter-spacing: .3px;
+  text-transform: uppercase;
+}
+.welcomeLine {
+  font-size: 16px;
+  color: #0b1020;
+}
+
+/* Right side */
+.right {
+  display: inline-flex;
+  gap: 12px;
+  align-items: center;
+}
+.userChip {
+  background: #eef2ff;
+  color: #3f4b7a;
+  border: 1px solid #dbe3ff;
+  border-radius: 999px;
+  padding: 6px 10px;
+  font-weight: 700;
+  font-size: 12px;
+}
+.logoutBtn {
+  height: 36px;
+  padding: 0 14px;
+  border: 1px solid #d7defa;
+  background: #ffffff;
+  border-radius: 10px;
+  color: #1f2937;
+  font-weight: 800;
+  cursor: pointer;
+  transition: box-shadow .2s ease, transform .05s ease, background .15s ease;
+}
+.logoutBtn:hover { background: #f6f8ff; box-shadow: 0 6px 18px rgba(16,34,90,.12); }
+.logoutBtn:active { transform: translateY(1px); }
+
+/* Loading skeleton for name */
+.skeletonName {
+  display: inline-block;
+  width: 180px;
+  height: 14px;
+  border-radius: 6px;
+  background: linear-gradient(90deg, #e9eeff 25%, #f4f7ff 50%, #e9eeff 75%);
+  animation: shimmer 1.4s infinite linear;
+}
+@keyframes shimmer {
+  0% { background-position: -180px 0; }
+  100% { background-position: 180px 0; }
+}

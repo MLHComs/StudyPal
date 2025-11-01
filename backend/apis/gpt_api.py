@@ -267,7 +267,52 @@ async def ingest_and_store_endpoint(
 #         return _fail(f"Ingestion failed: {type(e).__name__}")
 
 # --- GET /courses ---
-def list_courses(limit: int = 25, offset: int = 0, q: Optional[str] = None):
+
+def list_courses(
+    user_id: int,                           
+    limit: int = 25,
+    offset: int = 0,
+    q: Optional[str] = None,
+):
+    if _SESSION_FACTORY is None:
+        return _fail("Server misconfigured: no DB session factory is set.")
+
+    # basic guardrails
+    limit = max(1, min(limit, 100))
+    offset = max(0, offset)
+
+    with _SESSION_FACTORY() as db:
+        stmt = select(
+            Course.course_id,
+            Course.course_name,
+            func.length(Course.course_content).label("content_len"),
+            Course.user_id,
+        ).where(Course.user_id == user_id)
+
+        if q:
+            stmt = stmt.where(func.lower(Course.course_name).like(f"%{q.lower()}%"))
+
+        stmt = stmt.order_by(Course.course_id.desc()).offset(offset).limit(limit)
+
+        rows = db.execute(stmt).all()
+        payload = [
+            {
+                "course_id": r.course_id,
+                "course_name": r.course_name,
+                "content_len": int(r.content_len or 0),
+                "user_id": r.user_id,
+            }
+            for r in rows
+        ]
+
+        msg = f"Fetched {len(payload)} course(s) for user_id={user_id}."
+        if not payload:
+            msg = f"No courses found for user_id={user_id}."
+
+        return _success(json.dumps(payload, ensure_ascii=False), message=msg)
+    
+
+# def list_courses(limit: int = 25, offset: int = 0, q: Optional[str] = None):
     if _SESSION_FACTORY is None:
         return _fail("Server misconfigured: no DB session factory is set.")
 
@@ -289,6 +334,8 @@ def list_courses(limit: int = 25, offset: int = 0, q: Optional[str] = None):
             for r in rows
         ]
         return _success(json.dumps(payload, ensure_ascii=False), message=f"Fetched {len(payload)} course(s).")
+
+
 
 # --- GET /courses/{course_id} ---
 def get_course(course_id: int):
