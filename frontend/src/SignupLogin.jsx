@@ -1,22 +1,24 @@
-import React, { useState } from "react";
+import React, { useMemo, useState } from "react";
 import styles from "./css/SignupLogin.module.css";
 
 export default function SignupLogin() {
-  const [mode, setMode] = useState("signup"); // "signup" | "login"
+  const [flipped, setFlipped] = useState(false);
+  const [errors, setErrors] = useState({});
+
+  // Prefilled signup form values
   const [signup, setSignup] = useState({
-    user_email: "",
-    user_password: "",
-    confirm_password: "",
-    user_firstname: "",
-    user_lastname: "",
-    user_university: "",
-    user_currentsem: "",
+    user_firstname: "Manasi",
+    user_lastname: "Patil",
+    user_email: "you@school.edu",
+    user_university: "RIT",
+    user_currentsem: "Spring 2025",
+    user_password: "********",
+    confirm_password: "********",
   });
-  const [login, setLogin] = useState({
-    email: "",
-    password: "",
-  });
-  const [error, setError] = useState("");
+
+  const [login, setLogin] = useState({ email: "", password: "" });
+
+  const handleFlip = () => setFlipped((p) => !p);
 
   const handleSignupChange = (e) => {
     const { name, value } = e.target;
@@ -30,81 +32,98 @@ export default function SignupLogin() {
 
   const submitSignup = (e) => {
     e.preventDefault();
-    setError("");
+    const newErrors = {};
     if (signup.user_password !== signup.confirm_password) {
-      setError("Passwords do not match.");
-      return;
+      newErrors.confirm_password = "Passwords don’t match.";
     }
-    // TODO: call your API
-    // payload: { user_email, user_password, user_firstname, user_lastname, user_university, user_currentsem }
-    const { confirm_password, ...payload } = signup;
-    console.log("SIGNUP payload =>", payload);
+    setErrors(newErrors);
+    if (Object.keys(newErrors).length) return;
+    console.log("SIGNUP PAYLOAD:", signup);
   };
 
   const submitLogin = (e) => {
     e.preventDefault();
-    setError("");
-    // TODO: call your API
-    console.log("LOGIN payload =>", login);
+    console.log("LOGIN PAYLOAD:", login);
   };
 
-  const flipTo = (target) => {
-    setError("");
-    setMode(target);
+  // --- Social login handlers (wire to your OAuth flow) ---
+  const googleLogin = () => {
+    // e.g., window.location.href = "/auth/google";
+    console.log("Google login clicked");
   };
+  const githubLogin = () => {
+    // e.g., window.location.href = "/auth/github";
+    console.log("GitHub login clicked");
+  };
+
+  const cardClasses = useMemo(
+    () => `${styles.card} ${flipped ? styles.flipped : ""}`,
+    [flipped]
+  );
 
   return (
-    <div className={styles.wrap}>
-      <main className={styles.container}>
-        {/* Left hero copy */}
+    <div className={styles.pageWrapper}>
+      {/* Background video */}
+      <video autoPlay loop muted className={styles.bgVideo}>
+        <source src="/bg.mp4" type="video/mp4" />
+      </video>
+      <div className={styles.overlay} />
+
+      {/* Two-column layout */}
+      <main className={styles.main}>
+        {/* Left section */}
         <section className={styles.left}>
           <h1 className={styles.title}>
-            Study Smarter. Remember More. Stress Less.
+            Study <span className={styles.highlight}>Smarter</span>.<br />
+            Remember <span className={styles.highlight}>More</span>.<br />
+            Stress <span className={styles.highlight}>Less</span>.
           </h1>
           <p className={styles.subtitle}>
-            Turn your messy notes into clear summaries, flashcards, and quizzes.
-            <br />
-            <span>All personalized just for you.</span>
+            Turn your messy notes into clear summaries, flashcards, and quizzes — all personalized for you.
           </p>
         </section>
 
-        {/* Right: 3D flip card */}
-        <section className={styles.scene}>
-          <div
-            className={`${styles.card3d} ${
-              mode === "login" ? styles.flipped : ""
-            }`}
-          >
+        {/* Right section */}
+        <section className={styles.right}>
+          <div className={cardClasses} aria-live="polite">
             {/* FRONT — SIGN UP */}
             <div className={`${styles.face} ${styles.front}`}>
-              <h2 className={styles.cardTitle}>Sign Up</h2>
-              <form className={styles.form} onSubmit={submitSignup}>
+              <h2 className={styles.panelTitle}>Sign Up</h2>
+
+              <div className={styles.socialRow}>
+                <button onClick={googleLogin} type="button" className={`${styles.socialBtn} ${styles.google}`}>
+                  <img src="/google.svg" alt="" aria-hidden="true" />
+                  Continue with Google
+                </button>
+                <button onClick={githubLogin} type="button" className={`${styles.socialBtn} ${styles.github}`}>
+                  <img src="/github.svg" alt="" aria-hidden="true" />
+                  GitHub
+                </button>
+              </div>
+
+              <div className={styles.separator}>
+                <span>or</span>
+              </div>
+
+              <form onSubmit={submitSignup} noValidate>
                 <div className={styles.row2}>
-                  <div>
-                    <label className={styles.label} htmlFor="user_firstname">
-                      First name
-                    </label>
+                  <div className={styles.field}>
+                    <label htmlFor="user_firstname">First name</label>
                     <input
-                      className={styles.input}
                       id="user_firstname"
                       name="user_firstname"
                       type="text"
-                      placeholder="Manasi"
                       value={signup.user_firstname}
                       onChange={handleSignupChange}
                       required
                     />
                   </div>
-                  <div>
-                    <label className={styles.label} htmlFor="user_lastname">
-                      Last name
-                    </label>
+                  <div className={styles.field}>
+                    <label htmlFor="user_lastname">Last name</label>
                     <input
-                      className={styles.input}
                       id="user_lastname"
                       name="user_lastname"
                       type="text"
-                      placeholder="Patil"
                       value={signup.user_lastname}
                       onChange={handleSignupChange}
                       required
@@ -112,46 +131,36 @@ export default function SignupLogin() {
                   </div>
                 </div>
 
-                <label className={styles.label} htmlFor="user_email">
-                  Email
-                </label>
-                <input
-                  className={styles.input}
-                  id="user_email"
-                  name="user_email"
-                  type="email"
-                  placeholder="you@school.edu"
-                  value={signup.user_email}
-                  onChange={handleSignupChange}
-                  required
-                />
+                <div className={styles.field}>
+                  <label htmlFor="user_email">Email</label>
+                  <input
+                    id="user_email"
+                    name="user_email"
+                    type="email"
+                    value={signup.user_email}
+                    onChange={handleSignupChange}
+                    required
+                  />
+                </div>
 
                 <div className={styles.row2}>
-                  <div>
-                    <label className={styles.label} htmlFor="user_university">
-                      University
-                    </label>
+                  <div className={styles.field}>
+                    <label htmlFor="user_university">University</label>
                     <input
-                      className={styles.input}
                       id="user_university"
                       name="user_university"
                       type="text"
-                      placeholder="RIT"
                       value={signup.user_university}
                       onChange={handleSignupChange}
                       required
                     />
                   </div>
-                  <div>
-                    <label className={styles.label} htmlFor="user_currentsem">
-                      Current semester
-                    </label>
+                  <div className={styles.field}>
+                    <label htmlFor="user_currentsem">Current semester</label>
                     <input
-                      className={styles.input}
                       id="user_currentsem"
                       name="user_currentsem"
                       type="text"
-                      placeholder="Spring 2025"
                       value={signup.user_currentsem}
                       onChange={handleSignupChange}
                       required
@@ -159,135 +168,105 @@ export default function SignupLogin() {
                   </div>
                 </div>
 
-                <label className={styles.label} htmlFor="user_password">
-                  Password
-                </label>
-                <input
-                  className={styles.input}
-                  id="user_password"
-                  name="user_password"
-                  type="password"
-                  placeholder="••••••••"
-                  value={signup.user_password}
-                  onChange={handleSignupChange}
-                  required
-                  minLength={6}
-                />
-
-                <label className={styles.label} htmlFor="confirm_password">
-                  Confirm password
-                </label>
-                <input
-                  className={styles.input}
-                  id="confirm_password"
-                  name="confirm_password"
-                  type="password"
-                  placeholder="••••••••"
-                  value={signup.confirm_password}
-                  onChange={handleSignupChange}
-                  required
-                  minLength={6}
-                />
-
-                {error && <div className={styles.error}>{error}</div>}
-
-                {/* Divider */}
-                <div className={styles.dividerWrap} aria-hidden="true">
-                  <span className={styles.divider} />
-                  <span className={styles.orText}>Or</span>
-                  <span className={styles.divider} />
+                <div className={styles.field}>
+                  <label htmlFor="user_password">Password</label>
+                  <input
+                    id="user_password"
+                    name="user_password"
+                    type="password"
+                    value={signup.user_password}
+                    onChange={handleSignupChange}
+                    required
+                  />
                 </div>
 
-                {/* Social buttons */}
-                <div className={styles.socialRow}>
-                  <button type="button" className={styles.socialBtn}>
-                    <span className={styles.icon}>
-                      {/* Google SVG */}
-                      <svg width="18" height="18" viewBox="0 0 48 48" aria-hidden="true">
-                        <path fill="#FFC107" d="M43.6 20.5H42V20H24v8h11.3C33.8 32.7 29.3 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.9 1.2 8 3.1l5.7-5.7C34.8 6.2 29.7 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20c10 0 19-7.3 19-20 0-1.1-.1-2.3-.4-3.5z"/>
-                        <path fill="#FF3D00" d="M6.3 14.7l6.6 4.8C14.7 16.2 18.9 12 24 12c3.1 0 5.9 1.2 8 3.1l5.7-5.7C34.8 6.2 29.7 4 24 4 16.1 4 9.2 8.6 6.3 14.7z"/>
-                        <path fill="#4CAF50" d="M24 44c5.2 0 10-2 13.6-5.3l-6.3-5.2C29.3 36 26.8 37 24 37c-5.2 0-9.6-3.3-11.3-7.9l-6.6 5.1C9 39.4 15.9 44 24 44z"/>
-                        <path fill="#1976D2" d="M43.6 20.5H42V20H24v8h11.3c-1.1 3.2-4 5.9-7.3 6.6l6.3 5.2C37.3 37 43 31.7 43.6 20.5z"/>
-                      </svg>
-                    </span>
-                    <span>Sign up with Google</span>
-                  </button>
-
-                  <button type="button" className={styles.socialBtn}>
-                    <span className={styles.icon}>
-                      {/* Apple SVG */}
-                      <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true">
-                        <path fill="currentColor" d="M16.365 1.43c0 1.14-.46 2.23-1.2 3.03-.78.83-2.06 1.48-3.14 1.39-.1-1.09.48-2.26 1.22-3.02.83-.85 2.23-1.47 3.12-1.4zM21 17.08c-.52 1.19-1.15 2.37-2.07 3.55-.8 1.03-1.86 2.3-3.26 2.32-1.23.02-1.62-.76-3.03-.76-1.41 0-1.84.74-3.06.78-1.42.04-2.5-1.16-3.3-2.18C4.07 19.7 3 17.7 3 15.18c0-2.46 1-4.51 2.58-5.72.88-.68 1.99-1.14 3.14-1.16 1.23-.02 2.39.8 3.03.8.64 0 2-.99 3.38-.85.58.02 2.23.24 3.28 1.83-2.88 1.57-2.42 5.67-.39 6.99z"/>
-                      </svg>
-                    </span>
-                    <span>Sign up with Apple</span>
-                  </button>
+                <div className={styles.field}>
+                  <label htmlFor="confirm_password">Confirm password</label>
+                  <input
+                    id="confirm_password"
+                    name="confirm_password"
+                    type="password"
+                    value={signup.confirm_password}
+                    onChange={handleSignupChange}
+                    aria-invalid={!!errors.confirm_password}
+                    required
+                  />
+                  {errors.confirm_password && (
+                    <small className={styles.errorText}>{errors.confirm_password}</small>
+                  )}
                 </div>
 
-                <button type="submit" className={styles.submitBtn}>Sign up</button>
-
-                <button
-                  type="button"
-                  className={styles.flipBtn}
-                  onClick={() => flipTo("login")}
-                >
-                  Already have an account? <strong>Log in</strong>
+                <button type="submit" className={styles.submitBtn}>
+                  Create account
                 </button>
+
+                <p className={styles.toggleText}>
+                  Already have an account? <span onClick={handleFlip}>Log in</span>
+                </p>
               </form>
             </div>
 
-            {/* BACK — LOG IN */}
+            {/* BACK — LOGIN */}
             <div className={`${styles.face} ${styles.back}`}>
-              <h2 className={styles.cardTitle}>Log In</h2>
-              <form className={styles.form} onSubmit={submitLogin}>
-                <label className={styles.label} htmlFor="login_email">
-                  Email
-                </label>
-                <input
-                  className={styles.input}
-                  id="login_email"
-                  name="email"
-                  type="email"
-                  placeholder="you@school.edu"
-                  value={login.email}
-                  onChange={handleLoginChange}
-                  required
-                />
+              <h2 className={styles.panelTitle}>Welcome Back</h2>
 
-                <label className={styles.label} htmlFor="login_password">
-                  Password
-                </label>
-                <input
-                  className={styles.input}
-                  id="login_password"
-                  name="password"
-                  type="password"
-                  placeholder="••••••••"
-                  value={login.password}
-                  onChange={handleLoginChange}
-                  required
-                />
+              <div className={styles.socialRow}>
+                <button onClick={googleLogin} type="button" className={`${styles.socialBtn} ${styles.google}`}>
+                  <img src="/google.svg" alt="" aria-hidden="true" />
+                  Continue with Google
+                </button>
+                <button onClick={githubLogin} type="button" className={`${styles.socialBtn} ${styles.github}`}>
+                  <img src="/github.svg" alt="" aria-hidden="true" />
+                  GitHub
+                </button>
+              </div>
 
-                {error && <div className={styles.error}>{error}</div>}
+              <div className={styles.separator}>
+                <span>or</span>
+              </div>
+
+              <form onSubmit={submitLogin}>
+                <div className={styles.field}>
+                  <label htmlFor="login_email">Email</label>
+                  <input
+                    id="login_email"
+                    name="email"
+                    type="email"
+                    value={login.email}
+                    onChange={handleLoginChange}
+                    required
+                  />
+                </div>
+
+                <div className={styles.field}>
+                  <label htmlFor="login_password">Password</label>
+                  <input
+                    id="login_password"
+                    name="password"
+                    type="password"
+                    value={login.password}
+                    onChange={handleLoginChange}
+                    required
+                  />
+                </div>
+
+                <div className={styles.rowBetween}>
+                  <label className={styles.checkboxLabel}>
+                    <input type="checkbox" /> Remember me
+                  </label>
+                  <a className={styles.link} href="/forgot-password">Forgot password?</a>
+                </div>
 
                 <button type="submit" className={styles.submitBtn}>Log in</button>
 
-                <button
-                  type="button"
-                  className={styles.flipBtn}
-                  onClick={() => flipTo("signup")}
-                >
-                  New here? <strong>Create an account</strong>
-                </button>
+                <p className={styles.toggleText}>
+                  New here? <span onClick={handleFlip}>Create an account</span>
+                </p>
               </form>
             </div>
           </div>
         </section>
       </main>
-
-      <footer className={styles.footer}>
-        Welcome to AI-powered Study Buddy!
-      </footer>
     </div>
   );
 }
