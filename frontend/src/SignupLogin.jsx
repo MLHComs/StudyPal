@@ -5,55 +5,41 @@ export default function SignupLogin() {
   const [flipped, setFlipped] = useState(false);
   const [errors, setErrors] = useState({});
 
-  // Prefilled signup form values
+  // Use empty values; show suggestions via placeholders instead of prefilled text
   const [signup, setSignup] = useState({
-    user_firstname: "Manasi",
-    user_lastname: "Patil",
-    user_email: "you@school.edu",
-    user_university: "RIT",
-    user_currentsem: "Spring 2025",
-    user_password: "********",
-    confirm_password: "********",
+    user_firstname: "",
+    user_lastname: "",
+    user_email: "",
+    user_university: "",
+    user_currentsem: "",
+    user_password: "",
+    confirm_password: "",
   });
 
   const [login, setLogin] = useState({ email: "", password: "" });
 
   const handleFlip = () => setFlipped((p) => !p);
 
-  const handleSignupChange = (e) => {
-    const { name, value } = e.target;
-    setSignup((s) => ({ ...s, [name]: value }));
-  };
+  const handleSignupChange = (e) =>
+    setSignup((s) => ({ ...s, [e.target.name]: e.target.value }));
 
-  const handleLoginChange = (e) => {
-    const { name, value } = e.target;
-    setLogin((s) => ({ ...s, [name]: value }));
-  };
+  const handleLoginChange = (e) =>
+    setLogin((s) => ({ ...s, [e.target.name]: e.target.value }));
 
   const submitSignup = (e) => {
     e.preventDefault();
-    const newErrors = {};
+    const errs = {};
     if (signup.user_password !== signup.confirm_password) {
-      newErrors.confirm_password = "Passwords don’t match.";
+      errs.confirm_password = "Passwords don’t match.";
     }
-    setErrors(newErrors);
-    if (Object.keys(newErrors).length) return;
+    setErrors(errs);
+    if (Object.keys(errs).length) return;
     console.log("SIGNUP PAYLOAD:", signup);
   };
 
   const submitLogin = (e) => {
     e.preventDefault();
     console.log("LOGIN PAYLOAD:", login);
-  };
-
-  // --- Social login handlers (wire to your OAuth flow) ---
-  const googleLogin = () => {
-    // e.g., window.location.href = "/auth/google";
-    console.log("Google login clicked");
-  };
-  const githubLogin = () => {
-    // e.g., window.location.href = "/auth/github";
-    console.log("GitHub login clicked");
   };
 
   const cardClasses = useMemo(
@@ -90,20 +76,28 @@ export default function SignupLogin() {
             <div className={`${styles.face} ${styles.front}`}>
               <h2 className={styles.panelTitle}>Sign Up</h2>
 
+              {/* Social sign-in (redirect flow) */}
               <div className={styles.socialRow}>
-                <button onClick={googleLogin} type="button" className={`${styles.socialBtn} ${styles.google}`}>
-                  <img src="/google.svg" alt="" aria-hidden="true" />
+                <a
+                  href="/auth/google/start"
+                  className={`${styles.socialBtn} ${styles.googleLink}`}
+                  aria-label="Continue with Google"
+                >
+                  <img src="/Google.png" alt="" aria-hidden="true" />
                   Continue with Google
-                </button>
-                <button onClick={githubLogin} type="button" className={`${styles.socialBtn} ${styles.github}`}>
-                  <img src="/github.svg" alt="" aria-hidden="true" />
-                  GitHub
-                </button>
+                </a>
+
+                <a
+                  href="/auth/microsoft/start"
+                  className={`${styles.socialBtn} ${styles.microsoft}`}
+                  aria-label="Continue with Microsoft"
+                >
+                  <img src="/Microsoft_logo.svg.png" alt="" aria-hidden="true" />
+                  Continue with Microsoft
+                </a>
               </div>
 
-              <div className={styles.separator}>
-                <span>or</span>
-              </div>
+              <div className={styles.separator}><span>or</span></div>
 
               <form onSubmit={submitSignup} noValidate>
                 <div className={styles.row2}>
@@ -113,8 +107,10 @@ export default function SignupLogin() {
                       id="user_firstname"
                       name="user_firstname"
                       type="text"
+                      placeholder="Manasi"
                       value={signup.user_firstname}
                       onChange={handleSignupChange}
+                      autoComplete="given-name"
                       required
                     />
                   </div>
@@ -124,8 +120,10 @@ export default function SignupLogin() {
                       id="user_lastname"
                       name="user_lastname"
                       type="text"
+                      placeholder="Patil"
                       value={signup.user_lastname}
                       onChange={handleSignupChange}
+                      autoComplete="family-name"
                       required
                     />
                   </div>
@@ -137,8 +135,10 @@ export default function SignupLogin() {
                     id="user_email"
                     name="user_email"
                     type="email"
+                    placeholder="you@school.edu"
                     value={signup.user_email}
                     onChange={handleSignupChange}
+                    autoComplete="email"
                     required
                   />
                 </div>
@@ -150,6 +150,7 @@ export default function SignupLogin() {
                       id="user_university"
                       name="user_university"
                       type="text"
+                      placeholder="RIT"
                       value={signup.user_university}
                       onChange={handleSignupChange}
                       required
@@ -161,6 +162,7 @@ export default function SignupLogin() {
                       id="user_currentsem"
                       name="user_currentsem"
                       type="text"
+                      placeholder="Spring 2025"
                       value={signup.user_currentsem}
                       onChange={handleSignupChange}
                       required
@@ -174,8 +176,10 @@ export default function SignupLogin() {
                     id="user_password"
                     name="user_password"
                     type="password"
+                    placeholder="Create a strong password"
                     value={signup.user_password}
                     onChange={handleSignupChange}
+                    autoComplete="new-password"
                     required
                   />
                 </div>
@@ -186,9 +190,11 @@ export default function SignupLogin() {
                     id="confirm_password"
                     name="confirm_password"
                     type="password"
+                    placeholder="Re-enter your password"
                     value={signup.confirm_password}
                     onChange={handleSignupChange}
                     aria-invalid={!!errors.confirm_password}
+                    autoComplete="new-password"
                     required
                   />
                   {errors.confirm_password && (
@@ -196,9 +202,7 @@ export default function SignupLogin() {
                   )}
                 </div>
 
-                <button type="submit" className={styles.submitBtn}>
-                  Create account
-                </button>
+                <button type="submit" className={styles.submitBtn}>Create account</button>
 
                 <p className={styles.toggleText}>
                   Already have an account? <span onClick={handleFlip}>Log in</span>
@@ -211,19 +215,26 @@ export default function SignupLogin() {
               <h2 className={styles.panelTitle}>Welcome Back</h2>
 
               <div className={styles.socialRow}>
-                <button onClick={googleLogin} type="button" className={`${styles.socialBtn} ${styles.google}`}>
-                  <img src="/google.svg" alt="" aria-hidden="true" />
+                <a
+                  href="/auth/google/start"
+                  className={`${styles.socialBtn} ${styles.googleLink}`}
+                  aria-label="Continue with Google"
+                >
+                  <img src="/Google.png" alt="" aria-hidden="true" />
                   Continue with Google
-                </button>
-                <button onClick={githubLogin} type="button" className={`${styles.socialBtn} ${styles.github}`}>
-                  <img src="/github.svg" alt="" aria-hidden="true" />
-                  GitHub
-                </button>
+                </a>
+
+                <a
+                  href="/auth/microsoft/start"
+                  className={`${styles.socialBtn} ${styles.microsoft}`}
+                  aria-label="Continue with Microsoft"
+                >
+                  <img src="/Microsoft_logo.svg.png" alt="" aria-hidden="true" />
+                  Continue with Microsoft
+                </a>
               </div>
 
-              <div className={styles.separator}>
-                <span>or</span>
-              </div>
+              <div className={styles.separator}><span>or</span></div>
 
               <form onSubmit={submitLogin}>
                 <div className={styles.field}>
@@ -232,8 +243,10 @@ export default function SignupLogin() {
                     id="login_email"
                     name="email"
                     type="email"
+                    placeholder="you@school.edu"
                     value={login.email}
                     onChange={handleLoginChange}
+                    autoComplete="username"
                     required
                   />
                 </div>
@@ -244,8 +257,10 @@ export default function SignupLogin() {
                     id="login_password"
                     name="password"
                     type="password"
+                    placeholder="Your password"
                     value={login.password}
                     onChange={handleLoginChange}
+                    autoComplete="current-password"
                     required
                   />
                 </div>
@@ -267,6 +282,19 @@ export default function SignupLogin() {
           </div>
         </section>
       </main>
+      <div className={styles.footerSpacer} aria-hidden="true" />
+
+      {/* Footer */}
+      <footer className={styles.footer}>
+        <div className={styles.footerInner}>
+          <span>© {new Date().getFullYear()} StudyBuddy</span>
+          <nav className={styles.footerNav}>
+            <a href="/terms">Terms</a>
+            <a href="/privacy">Privacy</a>
+            <a href="/help">Help</a>
+          </nav>
+        </div>
+      </footer>
     </div>
   );
 }
