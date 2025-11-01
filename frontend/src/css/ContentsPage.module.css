@@ -1,0 +1,8 @@
+.page {
+  min-height: 100vh;
+  display: grid;
+  grid-template-rows: auto auto 1fr;
+  /* Soft blue gradient */
+  background:
+    radial-gradient(1100px 700px at 12% 8%, #ffffff 0%, #eef2ff 35%, #e7edff 65%, #dee7ff 100%);
+}
