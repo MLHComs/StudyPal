@@ -250,6 +250,32 @@ export default function Dashboard() {
           </div>
         </div>
       )}
+
+
+
+      {/* Floating Chatbot button */}
+        <button
+        className={styles.fab}
+        aria-label="Open Chatbot"
+        title="Open Chatbot"
+        onClick={() => {
+            // Wire this to your route when ready:
+            // navigate(`/chatbot?user=${encodeURIComponent(userId)}`);
+            navigate("/chatbot");
+        }}
+        >
+        {/* chat bubble svg */}
+        <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true">
+            <path
+            fill="currentColor"
+            d="M20 2H4a2 2 0 0 0-2 2v12c0 1.103.897 2 2 2h3v3a1 1 0 0 0 1.707.707L13.414 18H20a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2Zm0 14h-6.586L9 19.414V16H4V4h16v12Z"
+            />
+        </svg>
+        <span className={styles.fabPulse} aria-hidden="true" />
+        </button>
+
+
+
     </div>
   );
 }
