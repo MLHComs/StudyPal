@@ -58,7 +58,7 @@ export default function StickyHeader({ userId, onLogout, fetchUrl }) {
       <div className={styles.left}>
         <span className={styles.logoDot} aria-hidden />
         <div className={styles.textBlock}>
-          <div className={styles.appName}>Study Buddy</div>
+          <div className={styles.appName}>StudyPal</div>
           <div className={styles.welcomeLine}>
             {state.loading && <span className={styles.skeletonName} />}
             {!state.loading && state.error && <span>Welcome</span>}

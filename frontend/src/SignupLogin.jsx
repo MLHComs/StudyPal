@@ -374,7 +374,7 @@ export default function SignupLogin() {
 
       <footer className={styles.footer}>
         <div className={styles.footerInner}>
-          <span>© {new Date().getFullYear()} StudyBuddy</span>
+          <span>© {new Date().getFullYear()} StudyPal</span>
           <nav className={styles.footerNav}>
             <a href="/terms">Terms</a>
             <a href="/privacy">Privacy</a>
