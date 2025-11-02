@@ -7,7 +7,10 @@
   grid-template-columns: 1fr auto;
   align-items: center;
   padding: 0 20px;
-  background: rgba(245, 248, 255, 0.86);
+  /* background: rgba(245, 248, 255, 0.86); */
+  /* background: linear-gradient(90deg, #E0EAFC 0%, #CFDEF3 100%); */
+  /* background: linear-gradient(135deg, #89f7fe 0%, #66a6ff 100%); */
+  background: linear-gradient(135deg, #a1c4fd 0%, #c2e9fb 100%);
   backdrop-filter: blur(8px);
   border-bottom: 1px solid #e8edff;
   box-shadow: 0 6px 24px rgba(16,34,90,.08);

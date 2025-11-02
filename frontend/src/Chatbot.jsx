@@ -1,6 +1,8 @@
 import { useState, useRef, useEffect } from "react";
+import { useNavigate, useParams } from "react-router-dom";
 import axios from "axios";
 import { FiPlus } from "react-icons/fi"; 
+import styles from "./css/StickyHeader.module.css";
 
 function Chatbot() {
   const [input, setInput] = useState("");
@@ -8,6 +10,9 @@ function Chatbot() {
   const [loading, setLoading] = useState(false);
   const [uploadMessage, setUploadMessage] = useState("");
   const chatEndRef = useRef(null);
+
+   const { userId } = useParams();
+   const navigate = useNavigate();
 
   // Convert chat to Gemini API format
   const toGeminiHistory = () =>
@@ -101,7 +106,14 @@ function Chatbot() {
           zIndex: 20,
         }}
       >
-        <span>💬 Gemini Q&A Chat</span>
+        <span>💬 Ask me anything</span>
+        <div>
+            <button className={styles.logoutBtn} 
+                onClick={() =>  navigate(`/dashboard/${userId}`) }
+            >
+              Dashboard
+            </button>
+        </div>
       </header>
 
       {/* Upload Message */}

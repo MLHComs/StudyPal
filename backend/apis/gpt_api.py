@@ -277,7 +277,7 @@ def generate_course_summary(course_id: int, body: dict = Body(...)):
         return _fail("Server misconfigured: no DB session factory is set.")
 
     summary_length = body.get("summary_length")
-    summary_map = {"short": 200, "medium": 500, "long": 1000}
+    summary_map = {"short": 250, "medium": 500, "long": 1000}
     max_chars = summary_map.get(summary_length.lower())
     if not max_chars:
         return _fail("Invalid summary_length. Use one of: short, medium, long.")
