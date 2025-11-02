@@ -9,9 +9,16 @@ from sqlalchemy.orm import sessionmaker
 from apis.auth_api import SignUpAPI, LoginAPI
 from models import init_models  # from models/db_model.py
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from typing import List, Literal
 import google.generativeai as genai
+
+from fastapi import HTTPException, Body
+
+from fastapi.responses import StreamingResponse
+from elevenlabs import ElevenLabs
+from typing import Optional
+
 
 
 from PyPDF2 import PdfReader
@@ -169,6 +176,98 @@ def chat(req: ChatRequest):
     except Exception as e:
         print("Error during Gemini API call:", e)
         return ChatResponse(answer="⚠️ Error processing request.")
+
+
+
+
+
+
+
+
+
+
+class TranslateRequest(BaseModel):
+    text: str = Field(min_length=1, description="Full text to translate")
+    target_language: str = Field(min_length=2, description="e.g., English, Spanish, Marathi, Chinese (Simplified)")
+
+class TranslateResponse(BaseModel):
+    language: str
+    translated_text: str
+
+@app.post("/translate", response_model=TranslateResponse)
+def translate_text(req: TranslateRequest):
+    """
+    Translate arbitrary text to the requested language using Gemini.
+    Returns only the translated text (no extra explanations).
+    """
+    try:
+        model = genai.GenerativeModel("models/gemini-2.5-flash")
+        prompt = (
+            f"Translate the following text to {req.target_language}. "
+            "Return ONLY the translation. Preserve line breaks and bulleting.\n\n"
+            f"{req.text}"
+        )
+        resp = model.generate_content(prompt)
+        out = (resp.text or "").strip()
+        if not out:
+            raise ValueError("Empty translation returned")
+        return TranslateResponse(language=req.target_language, translated_text=out)
+    except Exception as e:
+        # Log server-side and hide internals from client
+        print("Gemini translation error:", e)
+        raise HTTPException(status_code=500, detail="Translation failed.")
+    
+
+class TTSRequest(BaseModel):
+    text: str
+    voice_id: Optional[str] = "TZXnHeB62zELHhRDHuu1"
+    model_id: Optional[str] = "eleven_multilingual_v2"
+    output_format: Optional[str] = "mp3_44100_128"
+
+
+ELEVEN_KEY = os.getenv("ELEVENLABS_API_KEY")
+if not ELEVEN_KEY:
+    print("⚠️ ELEVENLABS_API_KEY is not set in .env")
+eleven_client = ElevenLabs(api_key=ELEVEN_KEY)
+
+@app.post("/tts")
+def tts(req: TTSRequest):
+    """
+    Convert text to speech with ElevenLabs and stream MP3 back to the client.
+    Do NOT play server-side. Just return audio bytes.
+    """
+    if not req.text or not req.text.strip():
+        raise HTTPException(status_code=400, detail="Text is required.")
+
+    if not ELEVEN_KEY:
+        raise HTTPException(status_code=500, detail="ElevenLabs API key missing on server.")
+
+    # ElevenLabs text size limits are generous but we’ll be safe:
+    text = req.text.strip()
+    if len(text) > 5000:
+        text = text[:5000]
+
+    try:
+        # eleven_client.text_to_speech.convert returns an iterator of bytes chunks
+        audio_iter = eleven_client.text_to_speech.convert(
+            text=text,
+            voice_id=req.voice_id or "TZXnHeB62zELHhRDHuu1",
+            model_id=req.model_id or "eleven_multilingual_v2",
+            output_format=req.output_format or "mp3_44100_128",
+        )
+
+        # Wrap generator in StreamingResponse so the browser can play as it arrives
+        return StreamingResponse(
+            audio_iter,
+            media_type="audio/mpeg",  # mp3
+            headers={
+                # Allow the browser to stream/play
+                "Cache-Control": "no-store",
+            },
+        )
+    except Exception as e:
+        print("TTS error:", e)
+        raise HTTPException(status_code=500, detail="TTS generation failed.")
 
 
 

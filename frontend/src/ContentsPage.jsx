@@ -1,12 +1,10 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 
 import StickyHeader from "./StickyHeader";
 // import { useNavigate } from "react-router-dom";
 import styles from "./css/Dashboard.module.css";
 import quizIcon from '../public/quiz_icon.svg';
-
-
 
 import "./App.css";
 
@@ -68,6 +66,7 @@ const [submitError, setSubmitError] = useState("");
 const [scoreBanner, setScoreBanner] = useState(""); 
 
 
+
 // course header meta
 const [courseMeta, setCourseMeta] = useState({
   name: "",
@@ -75,6 +74,15 @@ const [courseMeta, setCourseMeta] = useState({
   error: ""
 });
 
+const [originalSummary, setOriginalSummary] = useState("");     // keep the un-translated text
+const [translatedCache, setTranslatedCache] = useState({});     // { Marathi: "...", Spanish: "...", ... }
+const [translating, setTranslating] = useState(false);
+
+const [speaking, setSpeaking] = useState(false);
+const audioRef = useRef(null);
+const [audioUrl, setAudioUrl] = useState(null);
+
+const [ttsLoading, setTtsLoading] = useState(false);
 
 async function fetchCourseMeta() {
   if (!courseId) return;
@@ -142,36 +150,6 @@ function formatNiceDate(iso) {
   return `${day}${ord(day)} ${month} ${year}, ${h}:${m} ${ampm}`;
 }
 
-
-
-  const quizQuestions = Array.from({ length: 10 }, (_, i) => ({
-    id: i + 1,
-    question: `Question ${i + 1}: What does EMR stand for?`,
-    options: [
-      "Elastic MapReduce",
-      "Elastic Multi Resource",
-      "Efficient MapReduce",
-      "Elastic Managed Resource",
-    ],
-  }));
-
-  const pastQuizzes = [
-    { id: 1, title: "AWS Basics", date: "Oct 25, 2025", score: "8/10" },
-    { id: 2, title: "Machine Learning Intro", date: "Oct 27, 2025", score: "7/10" },
-    { id: 3, title: "Networking Fundamentals", date: "Oct 30, 2025", score: "9/10" },
-  ];
-
-  const quizResults = {
-    1: [
-      { q: "What does EMR stand for?", correct: "Elastic MapReduce", chosen: "Elastic MapReduce" },
-      { q: "What is Amazon S3 used for?", correct: "Object storage service", chosen: "Object storage service" },
-      { q: "What is IAM?", correct: "Identity and Access Management", chosen: "Access Management" },
-      { q: "What is EC2?", correct: "Elastic Compute Cloud", chosen: "Elastic Cloud" },
-      { q: "What is Lambda?", correct: "Serverless computing", chosen: "Serverless computing" },
-      { q: "What is CloudWatch?", correct: "Monitoring AWS resources", chosen: "Logging AWS activity" },
-    ],
-  };
-
   // ---------- Handlers ----------
   const handleFlip = (index) =>
     setFlippedCards((prev) => ({ ...prev, [index]: !prev[index] }));
@@ -193,6 +171,7 @@ function formatNiceDate(iso) {
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const json = await res.json();
 
+
     let data = json.data ?? {};
     if (typeof data === "string") {
       try { data = JSON.parse(data); } catch { /* keep as string */ }
@@ -201,6 +180,9 @@ function formatNiceDate(iso) {
     const cleaned = sanitizeSummary(raw);
 
     setSummary((s) => ({ ...s, text: cleaned, loading: false }));
+    setOriginalSummary(cleaned);
+    setTranslatedCache({}); // reset cache when a new summary arrives
+
   } catch (e) {
     setSummary((s) => ({
       ...s,
@@ -209,6 +191,45 @@ function formatNiceDate(iso) {
     }));
   }
 }
+
+
+async function translateSummaryTo(lang) {
+  // If no text or English selected, just restore original
+  if (!summary.text) return;
+  if (lang === "English") {
+    setSummary((s) => ({ ...s, text: originalSummary }));
+    stopPlayback();
+    return;
+  }
+  // Cached?
+  if (translatedCache[lang]) {
+    setSummary((s) => ({ ...s, text: translatedCache[lang] }));
+    stopPlayback();
+    return;
+  }
+
+  try {
+    setTranslating(true);
+    const res = await fetch(`${API_BASE}/translate`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        text: originalSummary || summary.text,
+        target_language: lang,
+      }),
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const json = await res.json(); // { language, translated_text }
+    setTranslatedCache((c) => ({ ...c, [lang]: json.translated_text }));
+    setSummary((s) => ({ ...s, text: json.translated_text }));
+  } catch (e) {
+    alert("Could not translate. Please try again.");
+    // fallback: keep whatever was there
+  } finally {
+    setTranslating(false);
+  }
+}
+
 
 
 async function generateSummary() {
@@ -402,6 +423,106 @@ async function submitNewQuiz() {
 }
 
 
+async function speakCurrentSummary() {
+  // Don’t try if there’s no text
+  if (!summary.text || translating) return;
+
+  setSpeaking(true);
+  try {
+    const res = await fetch(`${API_BASE}/tts`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Accept": "audio/mpeg"
+      },
+      body: JSON.stringify({
+        text: summary.text,
+        // optional: pass another voice/model if you want to control it from UI
+        // voice_id: "TZXnHeB62zELHhRDHuu1",
+        // model_id: "eleven_multilingual_v2",
+        // output_format: "mp3_44100_128"
+      })
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+
+    // We’ll just blob() it (simple + reliable), then set <audio src> to the blob URL
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+
+    if (audioUrl) URL.revokeObjectURL(audioUrl); // free the old one
+    setAudioUrl(url);
+
+    if (audioRef.current) {
+      audioRef.current.src = url;
+      // play may reject if browser needs user gesture (button click counts as a gesture)
+      await audioRef.current.play();
+    }
+  } catch (e) {
+    console.error(e);
+    alert("Could not play audio. Please try again.");
+  } finally {
+    setSpeaking(false);
+  }
+}
+
+
+
+function stopPlayback() {
+  try {
+    if (audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current.currentTime = 0;
+    }
+  } finally {
+    setSpeaking(false);
+    setTtsLoading(false); 
+  }
+}
+
+async function toggleSpeakCurrentSummary() {
+  // If nothing to read or we’re mid-translate, do nothing
+  if (!summary.text || translating) return;
+
+  // If currently playing, stop it
+  if (speaking && audioRef.current && !audioRef.current.paused) {
+    stopPlayback();
+    return;
+  }
+
+  // Otherwise, start playback (fetch new audio and play)
+  setSpeaking(true);
+  setTtsLoading(true);
+  try {
+    const res = await fetch(`${API_BASE}/tts`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Accept": "audio/mpeg"
+      },
+      body: JSON.stringify({ text: summary.text })
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+
+    if (audioUrl) URL.revokeObjectURL(audioUrl);
+    setAudioUrl(url);
+
+    if (audioRef.current) {
+      audioRef.current.src = url;
+      await audioRef.current.play();
+    }
+  } catch (e) {
+    console.error(e);
+    alert("Could not play audio. Please try again.");
+    setSpeaking(false);
+  } finally {
+    setTtsLoading(false);        // <— stop spinner
+  }
+  
+}
+
 
 
 
@@ -426,6 +547,32 @@ useEffect(() => {
   fetchCourseMeta();
 }, [courseId]);
 
+useEffect(() => {
+  return () => {
+    if (audioUrl) URL.revokeObjectURL(audioUrl);
+  };
+}, [audioUrl]);
+
+
+useEffect(() => {
+  const el = audioRef.current;
+  if (!el) return;
+
+  const onEnded = () => setSpeaking(false);
+  const onPause = () => {
+    // If user paused via system controls, reflect that
+    if (el.currentTime < (el.duration || Infinity)) setSpeaking(false);
+  };
+
+  el.addEventListener("ended", onEnded);
+  el.addEventListener("pause", onPause);
+  return () => {
+    el.removeEventListener("ended", onEnded);
+    el.removeEventListener("pause", onPause);
+  };
+}, []);
+
+
 
   return (
     <div className={styles.page}>
@@ -439,8 +586,27 @@ useEffect(() => {
           flexDirection: "column",
           alignItems: "center",
           padding: "40px",
+          position: "relative",
         }}
       >
+
+    <div className={styles.leftRail}>
+      <button
+        className={styles.leftRailBtn}
+        onClick={() =>  navigate(`/dashboard/${userId}`) }
+        
+        aria-label="Go to Dashboard"
+      >
+        Dashboard
+      </button>
+      <button
+        className={styles.leftRailBtn}
+        onClick={() => navigate("/community")}
+        aria-label="Go to Community"
+      >
+        Community
+      </button>
+    </div>
         {/* <h1 style={{ fontSize: "2rem", fontWeight: "700", color: "#1f2937", marginBottom: 20 }}>
           📘 Study Content Page
         </h1> */}
@@ -531,7 +697,16 @@ useEffect(() => {
                 >
                   <select
                     value={selectedLanguage}
-                    onChange={(e) => setSelectedLanguage(e.target.value)}
+                    // onChange={(e) => setSelectedLanguage(e.target.value)}
+                    onChange={async (e) => {
+                      const lang = e.target.value;
+                      setSelectedLanguage(lang);
+                      // Only try translating if we already have a summary displayed
+                      if ((originalSummary || summary.text) && lang) {
+                        await translateSummaryTo(lang);
+                      }
+                    }}
+
                     style={{
                       padding: "6px 10px",
                       borderRadius: "6px",
@@ -541,28 +716,77 @@ useEffect(() => {
                     }}
                   >
                     <option>English</option>
-                    <option>Hindi</option>
+                    <option>Spanish</option>
                     <option>Marathi</option>
+                    <option>Chinese</option>
                   </select>
-                  <button
-                    style={{
-                      backgroundColor: "#2563eb",
-                      color: "white",
-                      border: "none",
-                      borderRadius: "50%",
-                      width: "36px",
-                      height: "36px",
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      cursor: "pointer",
-                      fontSize: "18px",
-                      boxShadow: "0 2px 6px rgba(0,0,0,0.2)",
-                    }}
-                    title="Listen"
-                  >
-                    🔊
-                  </button>
+
+                  <div style={{ position: "relative", width: 36, height: 36 }}>
+                    <button
+                      onClick={toggleSpeakCurrentSummary}
+                      disabled={!summary.text || translating}
+                      style={{
+                        backgroundColor: speaking ? "#ef4444" : "#2563eb",
+                        color: "white",
+                        border: "none",
+                        borderRadius: "50%",
+                        width: "36px",
+                        height: "36px",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        cursor: (!summary.text || translating) ? "not-allowed" : "pointer",
+                        fontSize: "18px",
+                        boxShadow: "0 2px 6px rgba(0,0,0,0.2)",
+                        opacity: (!summary.text || translating) ? 0.7 : 1
+                      }}
+                      title={speaking ? "Stop" : "Listen"}
+                      aria-label={speaking ? "Stop audio" : "Play summary as audio"}
+                    >
+                      {speaking ? "⏹" : "🔊"}
+                    </button>
+
+                    {/* Spinner ring overlay */}
+                    {ttsLoading && (
+                      <span className={styles.spinnerRing} aria-hidden="true" />
+                    )}
+                  </div>
+
+                  <audio ref={audioRef} preload="auto" />
+
+                  <div aria-live="polite" style={{ position: "absolute", width: 1, height: 1, overflow: "hidden", clip: "rect(1px,1px,1px,1px)" }}>
+                    {ttsLoading ? "Fetching audio…" : ""}
+                  </div>
+
+
+
+                {/* <button
+                  onClick={toggleSpeakCurrentSummary}
+                  disabled={!summary.text || translating}
+                  style={{
+                    backgroundColor: speaking ? "#ef4444" : "#2563eb", 
+                    color: "white",
+                    border: "none",
+                    borderRadius: "50%",
+                    width: "36px",
+                    height: "36px",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    cursor: (!summary.text || translating) ? "not-allowed" : "pointer",
+                    fontSize: "18px",
+                    boxShadow: "0 2px 6px rgba(0,0,0,0.2)",
+                    opacity: (!summary.text || translating) ? 0.7 : 1
+                  }}
+                  title={speaking ? "Stop" : "Listen"}
+                  aria-label={speaking ? "Stop audio" : "Play summary as audio"}
+                >
+                  {speaking ? "⏹" : "🔊"}
+                </button>
+                <audio ref={audioRef} preload="auto" /> */}
+
+
+                 
                 </div>
 
 
@@ -602,17 +826,26 @@ useEffect(() => {
                   </div>
                 )}
 
-                {!summary.loading && !summary.error && !!summary.text && (
+
+                {(!summary.loading && !summary.error && !!summary.text) && (
+                  translating ? (
+                    <div style={{ color: "#374151" }}>
+                      Translating to {selectedLanguage}…
+                    </div>
+                  ) : (
+                    <div style={{ whiteSpace: "pre-wrap", lineHeight: 1.55 }}>
+                      {summary.text}
+                    </div>
+                  )
+                )}
+
+                {/* {!summary.loading && !summary.error && !!summary.text && (
                   <div style={{ whiteSpace: "pre-wrap", lineHeight: 1.55 }}>
                     {summary.text}
                   </div>
-                )}
-
-
+                )} */}
 
                </div>
-
-              
           </div>
         )}
 
