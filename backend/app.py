@@ -37,6 +37,7 @@ from apis.quiz_api import (
     create_or_replace_quiz,  
     list_quizzes_for_course,
     get_quiz_by_id,
+    submit_quiz_answers
 )
 
 from apis.user_api import (
@@ -96,6 +97,7 @@ app.add_api_route("/courses/{course_id}/flashcards", get_flashcards,            
 app.add_api_route("/courses/{course_id}/quiz", create_or_replace_quiz, methods=["POST"])
 app.add_api_route("/courses/{course_id}/quizzes", list_quizzes_for_course, methods=["GET"])
 app.add_api_route("/quizzes/{quiz_id}", get_quiz_by_id, methods=["GET"])
+app.add_api_route("/quizzes/{quiz_id}/answers",submit_quiz_answers,methods=["POST"])
 
 
 # ---------- Data Models ---------- #

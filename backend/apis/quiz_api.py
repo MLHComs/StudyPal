@@ -1,13 +1,15 @@
 import os, json, re
-from typing import Callable, Optional, List
+from typing import Callable, Optional, List, Dict, Any
 
 from dotenv import load_dotenv
 from fastapi import Body
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.orm import Session
 from openai import OpenAI
 
 from models import Course, Quiz, QuizQuestion
+from datetime import datetime, timezone
+
 
 load_dotenv()
 
@@ -159,7 +161,18 @@ def create_or_replace_quiz(course_id: int, params: dict = Body(default={})):
 
     # 3) persist as a NEW quiz (no replacement)
     with _SESSION_FACTORY() as db:
-        quiz = Quiz(course_id=course_id)   # always new
+        # quiz = Quiz(course_id=course_id)   # always new
+         # Title: use client-provided title or generate a nice default
+        user_title = (params or {}).get("quiz_title")
+        if isinstance(user_title, str):
+            user_title = user_title.strip()
+        if not user_title:
+            # e.g., "Requirements Eng. – Quiz (2025-11-01 14:05)"
+            short_cname = (cname or "").strip()[:32]
+            # ts = datetime.now(timezone.utc).astimezone().strftime("%Y-%m-%d %H:%M")
+            user_title = f"{short_cname} - Quiz" if short_cname else f"Quiz"
+ 
+        quiz = Quiz(course_id=course_id, quiz_title=user_title, is_submitted=False)  # created_at auto
         db.add(quiz)
         db.flush()  # get quiz_id
 
@@ -175,7 +188,19 @@ def create_or_replace_quiz(course_id: int, params: dict = Body(default={})):
         db.commit()
         quiz_id = quiz.quiz_id
 
-    payload = {"quiz_id": quiz_id, "course_id": course_id, "questions_saved": 10}
+    # payload = {"quiz_id": quiz_id, "course_id": course_id, "questions_saved": 10}
+    # return _success(json.dumps(payload), f"New quiz created for course_id={course_id}.")
+    payload = {
+        "quiz_id": quiz_id,
+        "course_id": course_id,
+        "quiz_title": user_title,
+        # created_at is DB default; fetch it to return
+    }
+    # fetch created_at to return
+    with _SESSION_FACTORY() as db:
+        row = db.execute(select(Quiz.created_at).where(Quiz.quiz_id == quiz_id)).one()
+        payload["created_at"] = row[0].isoformat() if row and row[0] else None
+        payload["questions_saved"] = 10
     return _success(json.dumps(payload), f"New quiz created for course_id={course_id}.")
 
 
@@ -185,16 +210,34 @@ def list_quizzes_for_course(course_id: int):
     if _SESSION_FACTORY is None:
         return _fail("Server misconfigured: no DB session factory is set.")
     with _SESSION_FACTORY() as db:
-        rows = db.execute(select(Quiz.quiz_id).where(Quiz.course_id == course_id)).all()
-    ids = [r[0] for r in rows]
-    return _success(json.dumps({"course_id": course_id, "quiz_ids": ids}),
-                    f"Found {len(ids)} quizzes for course_id={course_id}.")
+            rows = db.execute(
+            select(Quiz.quiz_id, Quiz.quiz_title, Quiz.created_at, Quiz.is_submitted == True)
+            .where(Quiz.course_id == course_id, Quiz.is_submitted == True)
+            .order_by(Quiz.created_at.desc())
+        ).all()
+    items = [
+        {
+            "quiz_id": r[0],
+            "quiz_title": r[1],
+            "created_at": (r[2].isoformat() if r[2] else None),
+        }
+        for r in rows
+    ]
+    return _success(
+        json.dumps({"course_id": course_id, "quizzes": items}),
+        f"Found {len(items)} quizzes for course_id={course_id}."
+    )
 
 # GET /quizzes/{quiz_id} -> questions of a single quiz
 def get_quiz_by_id(quiz_id: int):
     if _SESSION_FACTORY is None:
         return _fail("Server misconfigured: no DB session factory is set.")
     with _SESSION_FACTORY() as db:
+        meta = db.execute(
+            select(Quiz.quiz_title, Quiz.created_at, Quiz.is_submitted)
+            .where(Quiz.quiz_id == quiz_id)
+        ).one_or_none()
+        
         rows = db.execute(
             select(
                 QuizQuestion.question_index,
@@ -202,13 +245,18 @@ def get_quiz_by_id(quiz_id: int):
                 QuizQuestion.question_text,
                 QuizQuestion.options_json,
                 QuizQuestion.correct_index,
+                QuizQuestion.student_selected_index,
             ).where(QuizQuestion.quiz_id == quiz_id)
              .order_by(QuizQuestion.question_index.asc())
         ).all()
     if not rows:
         return _fail(f"No questions found for quiz_id={quiz_id}")
+    quiz_title = meta[0] if meta else None
+    created_at = meta[1].isoformat() if (meta and meta[1]) else None
+    is_submitted = bool(meta[2]) if (meta and meta[2] is not None) else False
+
     questions = []
-    for idx, qtype, qtext, opts_json, ci in rows:
+    for idx, qtype, qtext, opts_json, ci, sel in rows:
         try:
             options = json.loads(opts_json)
         except Exception:
@@ -218,8 +266,116 @@ def get_quiz_by_id(quiz_id: int):
             "type": qtype,
             "question": qtext,
             "options": options,
-            "correct_index": ci
+            "correct_index": ci,
+            "student_selected_index": sel,
         })
-    return _success(json.dumps({"quiz_id": quiz_id, "questions": questions}),
-                    f"Quiz {quiz_id} fetched.")
 
+    return _success(
+       json.dumps({
+           "quiz_id": quiz_id,
+           "quiz_title": quiz_title,
+           "created_at": created_at,
+           "is_submitted": is_submitted,
+           "questions": questions
+       }),
+        f"Quiz {quiz_id} fetched. is_submitted={is_submitted}"
+    )
+
+
+
+def _validate_choice(idx: Any) -> int:
+    try:
+        v = int(idx)
+    except Exception:
+        raise ValueError("student_selected_index must be an integer")
+    if v not in (0, 1, 2, 3):
+        raise ValueError("student_selected_index must be 0..3")
+    return v
+
+
+
+# ---------------- POST /quizzes/{quiz_id}/answers ----------------
+def submit_quiz_answers(
+    quiz_id: int,
+    answers: List[Dict[str, Any]] = Body(default=[]),
+):
+    """
+    Request body (array):
+    [
+      {"quiz_id": 3, "question_index": 2, "student_selected_index": 1},
+      ...
+    ]
+    - All items must reference the same quiz (path {quiz_id}).
+    - Upserts student's selected index for each question.
+    - Overwrites previous selection if already set.
+    """
+    if _SESSION_FACTORY is None:
+        return _fail("Server misconfigured: no DB session factory is set.")
+
+    if not isinstance(answers, list) or len(answers) == 0:
+        return _fail("Body must be a non-empty JSON array.")
+
+    # Normalize/validate payload
+    cleaned = []
+    for i, item in enumerate(answers, start=1):
+        if not isinstance(item, dict):
+            return _fail(f"Item {i} is not an object.")
+        body_qid = int(item.get("quiz_id", quiz_id))
+        if body_qid != quiz_id:
+            return _fail(f"Item {i} quiz_id={body_qid} does not match path quiz_id={quiz_id}.")
+        try:
+            q_index = int(item["question_index"])
+            sel_idx = _validate_choice(item["student_selected_index"])
+        except KeyError as k:
+            return _fail(f"Item {i} missing field: {k.args[0]}")
+        except ValueError as ve:
+            return _fail(f"Item {i} invalid: {ve}")
+        cleaned.append((q_index, sel_idx))
+
+    updated = 0
+    missing = []      # question_index values not found
+    correct = 0       # how many answers are correct (optional stat)
+
+    with _SESSION_FACTORY() as db:
+        for q_index, sel_idx in cleaned:
+            # Is there such a question for this quiz?
+            row = db.execute(
+                select(QuizQuestion.question_id, QuizQuestion.correct_index)
+                .where(
+                    QuizQuestion.quiz_id == quiz_id,
+                    QuizQuestion.question_index == q_index
+                )
+            ).one_or_none()
+
+            if not row:
+                missing.append(q_index)
+                continue
+
+            qid, correct_idx = row
+            # write student's choice (overwrite allowed)
+            db.execute(
+                update(QuizQuestion)
+                .where(QuizQuestion.question_id == qid)
+                .values(student_selected_index=sel_idx)
+            )
+            updated += 1
+            if sel_idx == correct_idx:
+                correct += 1
+
+        # >>> NEW: mark the quiz as submitted
+        quiz_row = db.get(Quiz, quiz_id)
+        if not quiz_row:
+            return _fail(f"Quiz {quiz_id} not found.")
+        quiz_row.is_submitted = True
+        # <<<
+
+        db.commit()
+
+    payload = {
+        "quiz_id": quiz_id,
+        "updated": updated,
+        "missing_questions": missing,   
+        "correct_count": correct,       
+        "is_submitted": True, 
+    }
+    return _success(json.dumps(payload), f"Recorded answers for quiz_id={quiz_id}.")

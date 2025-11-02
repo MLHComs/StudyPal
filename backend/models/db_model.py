@@ -2,9 +2,10 @@
 from __future__ import annotations
 from typing import Optional
 
-from sqlalchemy import (
-    Integer, String, Text, UniqueConstraint, ForeignKey
-)
+from sqlalchemy import Integer, String, Text, UniqueConstraint, ForeignKey, DateTime, Boolean 
+from sqlalchemy.sql import func
+from datetime import datetime 
+
 from sqlalchemy.orm import declarative_base, Mapped, mapped_column
 
 Base = declarative_base()
@@ -53,16 +54,6 @@ class Flashcard(Base):
 
 
 
-# class Quiz(Base):
-#     __tablename__ = "quizzes"
-#     __table_args__ = (UniqueConstraint("course_id", name="uq_quiz_course"),)
-
-#     quiz_id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-#     course_id: Mapped[int] = mapped_column(
-#         Integer, ForeignKey("courses.course_id", ondelete="CASCADE"), nullable=False
-#     )
-
-
 class Quiz(Base):
     __tablename__ = "quizzes"
 
@@ -71,6 +62,12 @@ class Quiz(Base):
         Integer, ForeignKey("courses.course_id", ondelete="CASCADE"), nullable=False
     )
 
+    quiz_title: Mapped[str] = mapped_column(String(255), nullable=False)
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+    is_submitted: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
 
 
 class QuizQuestion(Base):
