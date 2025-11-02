@@ -1,27 +1,53 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { useNavigate, useParams } from "react-router-dom";
+
 import StickyHeader from "./StickyHeader";
-import { useNavigate } from "react-router-dom";
+// import { useNavigate } from "react-router-dom";
 import styles from "./css/Dashboard.module.css";
+
+
+
 import "./App.css";
 
 function ContentsPage() {
   const navigate = useNavigate();
   const logout = () => navigate("/");
+  const { courseId } = useParams();             
+  const API_BASE = "http://127.0.0.1:8000";
 
   const [activeSection, setActiveSection] = useState("summary");
-  const [selectedSummary, setSelectedSummary] = useState(null);
+  // const [selectedSummary, setSelectedSummary] = useState(null);
+  const [summary, setSummary] = useState({
+    length: "short",     
+    text: "",
+    loading: false,
+    error: "",
+  });
+
   const [flippedCards, setFlippedCards] = useState({});
   const [selectedLanguage, setSelectedLanguage] = useState("English");
   const [quizView, setQuizView] = useState("new");
   const [selectedQuiz, setSelectedQuiz] = useState(null);
 
+  // NEW
+const [generating, setGenerating] = useState(false);
+
+// NEW – strip headers/bold markers; normalize bullets
+function sanitizeSummary(markdown) {
+  return String(markdown || "")
+    .replace(/^#{1,6}\s*/gm, "")   // remove leading ### etc
+    .replace(/\*\*/g, "")          // remove bold markers
+    .replace(/^\s*[-*]\s+/gm, "• ")// convert -/* bullets to •
+}
+
+
   // ---------- Dummy Data ----------
-  const summaries = {
-    short: "Short summary: AWS EMR is a cloud service for big data processing.",
-    medium:
-      "Medium summary: Amazon EMR simplifies processing large datasets using Hadoop and Spark frameworks on AWS.",
-    long: "Long summary: Amazon EMR (Elastic MapReduce) is a managed cluster platform for processing massive datasets using frameworks like Apache Hadoop and Apache Spark.",
-  };
+  // const summaries = {
+  //   short: "Short summary: AWS EMR is a cloud service for big data processing.",
+  //   medium:
+  //     "Medium summary: Amazon EMR simplifies processing large datasets using Hadoop and Spark frameworks on AWS.",
+  //   long: "Long summary: Amazon EMR (Elastic MapReduce) is a managed cluster platform for processing massive datasets using frameworks like Apache Hadoop and Apache Spark.",
+  // };
 
   const flashcards = [
     { q: "What does EMR stand for?", a: "Elastic MapReduce" },
@@ -67,12 +93,70 @@ function ContentsPage() {
   // ---------- Handlers ----------
   const handleFlip = (index) =>
     setFlippedCards((prev) => ({ ...prev, [index]: !prev[index] }));
-  const handleSummarySelect = (type) => setSelectedSummary(type);
+  // const handleSummarySelect = (type) => setSelectedSummary(type);
   const handleSectionChange = (section) => setActiveSection(section);
   const openQuiz = (quiz) => setSelectedQuiz(quiz);
   const closeModal = () => setSelectedQuiz(null);
 
-  // ---------- UI ----------
+
+  // Calls GET /courses/:courseId/summary?summary_length=<short|medium|long>
+  async function fetchSummary(nextLength) {
+  if (!courseId) return;
+  const length = nextLength || summary.length;
+
+  setSummary((s) => ({ ...s, loading: true, error: "", length, text: "" }));
+  try {
+    const url = `${API_BASE}/courses/${encodeURIComponent(courseId)}/summary?summary_length=${encodeURIComponent(length)}`;
+    const res = await fetch(url);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const json = await res.json();
+
+    let data = json.data ?? {};
+    if (typeof data === "string") {
+      try { data = JSON.parse(data); } catch { /* keep as string */ }
+    }
+    const raw = (data && (data.summary_content || data.summary || data.content)) || "";
+    const cleaned = sanitizeSummary(raw);
+
+    setSummary((s) => ({ ...s, text: cleaned, loading: false }));
+  } catch (e) {
+    setSummary((s) => ({
+      ...s,
+      loading: false,
+      error: "Could not fetch summary. Please try again.",
+    }));
+  }
+}
+
+// NEW
+async function generateSummary() {
+  if (!courseId) return;
+  setSummary((s) => ({ ...s, error: "" }));
+  setGenerating(true);
+  try {
+    const res = await fetch(`${API_BASE}/courses/${encodeURIComponent(courseId)}/summary`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ summary_length: summary.length }),
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+
+    // Immediately fetch to display the new content
+    await fetchSummary(summary.length);
+  } catch (e) {
+    setSummary((s) => ({ ...s, error: "Could not generate summary. Please try again." }));
+  } finally {
+    setGenerating(false);
+  }
+}
+
+useEffect(() => {
+  if (activeSection === "summary") {
+    fetchSummary("short");  // default selection
+  }
+// eslint-disable-next-line react-hooks/exhaustive-deps
+}, [activeSection, courseId]);
+
   return (
     <div className={styles.page}>
       <StickyHeader userId={1} onLogout={logout} />
@@ -126,13 +210,13 @@ function ContentsPage() {
           >
             <h2 style={{ marginBottom: "10px" }}>Choose Summary Length:</h2>
             <div style={{ display: "flex", gap: "10px", marginBottom: "20px" }}>
-              {["short", "medium", "long"].map((type) => (
-                <button
-                  key={type}
-                  onClick={() => handleSummarySelect(type)}
+             {["short", "medium", "long"].map((type) => (
+               <button
+                 key={type}
+                 onClick={() => fetchSummary(type)}
                   style={{
-                    backgroundColor: selectedSummary === type ? "#2563eb" : "#f3f4f6",
-                    color: selectedSummary === type ? "white" : "black",
+                   backgroundColor: summary.length === type ? "#2563eb" : "#f3f4f6",
+                   color: summary.length === type ? "white" : "black",
                     border: "none",
                     borderRadius: "6px",
                     padding: "8px 14px",
@@ -145,7 +229,7 @@ function ContentsPage() {
               ))}
             </div>
 
-            {selectedSummary && (
+            {/* {selectedSummary && ( */}
               <div
                 style={{
                   backgroundColor: "#f9fafb",
@@ -158,6 +242,7 @@ function ContentsPage() {
                   gap: "10px",
                 }}
               >
+
                 {/* Language + Audio */}
                 <div
                   style={{
@@ -201,9 +286,55 @@ function ContentsPage() {
                     🔊
                   </button>
                 </div>
-                <div>{summaries[selectedSummary]}</div>
-              </div>
-            )}
+
+
+                {summary.loading && (
+                  <div style={{ color: "#374151" }}>
+                    Fetching {summary.length} summary…
+                  </div>
+                )}
+
+                {!summary.loading && summary.error && (
+                  <div style={{ color: "#b91c1c", fontWeight: 600 }}>
+                    {summary.error}
+                  </div>
+                )}
+
+                {!summary.loading && !summary.error && !summary.text && (
+                  <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+                    <span style={{ color: "#374151" }}>
+                      No summary available for <strong>{summary.length}</strong>.
+                    </span>
+                    <button
+                      onClick={generateSummary}
+                      disabled={generating}
+                      style={{
+                        backgroundColor: "#2563eb",
+                        color: "white",
+                        border: "none",
+                        borderRadius: "6px",
+                        padding: "8px 14px",
+                        cursor: "pointer",
+                        fontWeight: 600,
+                        opacity: generating ? 0.8 : 1,
+                      }}
+                    >
+                      {generating ? "Generating…" : "Generate"}
+                    </button>
+                  </div>
+                )}
+
+                {!summary.loading && !summary.error && !!summary.text && (
+                  <div style={{ whiteSpace: "pre-wrap", lineHeight: 1.55 }}>
+                    {summary.text}
+                  </div>
+                )}
+
+
+
+               </div>
+
+              
           </div>
         )}
 
