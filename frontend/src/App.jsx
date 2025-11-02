@@ -20,7 +20,7 @@ function App() {
             {/* <Route path="/Dashboard" element={<Dashboard />} /> */}
             <Route path="/chatbot" element={<Chatbot />} />
             <Route path="/dashboard/:userId" element={<Dashboard />} />
-            <Route path="/contentspage/:courseId" element={<ContentsPage />} />
+            <Route path="/contentspage/:courseId/:userId" element={<ContentsPage />} />
           </Routes>
         </Router>
       </div>

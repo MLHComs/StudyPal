@@ -211,7 +211,7 @@ def list_quizzes_for_course(course_id: int):
         return _fail("Server misconfigured: no DB session factory is set.")
     with _SESSION_FACTORY() as db:
             rows = db.execute(
-            select(Quiz.quiz_id, Quiz.quiz_title, Quiz.created_at, Quiz.is_submitted == True)
+            select(Quiz.quiz_id, Quiz.quiz_title, Quiz.created_at, Quiz.correct_count)
             .where(Quiz.course_id == course_id, Quiz.is_submitted == True)
             .order_by(Quiz.created_at.desc())
         ).all()
@@ -220,6 +220,7 @@ def list_quizzes_for_course(course_id: int):
             "quiz_id": r[0],
             "quiz_title": r[1],
             "created_at": (r[2].isoformat() if r[2] else None),
+            "correct_count": r[3],
         }
         for r in rows
     ]
@@ -234,7 +235,7 @@ def get_quiz_by_id(quiz_id: int):
         return _fail("Server misconfigured: no DB session factory is set.")
     with _SESSION_FACTORY() as db:
         meta = db.execute(
-            select(Quiz.quiz_title, Quiz.created_at, Quiz.is_submitted)
+            select(Quiz.quiz_title, Quiz.created_at, Quiz.is_submitted, Quiz.correct_count)
             .where(Quiz.quiz_id == quiz_id)
         ).one_or_none()
         
@@ -270,12 +271,15 @@ def get_quiz_by_id(quiz_id: int):
             "student_selected_index": sel,
         })
 
+    correct_count = meta[3] if meta else None
+
     return _success(
        json.dumps({
            "quiz_id": quiz_id,
            "quiz_title": quiz_title,
            "created_at": created_at,
            "is_submitted": is_submitted,
+           "correct_count": correct_count,
            "questions": questions
        }),
         f"Quiz {quiz_id} fetched. is_submitted={is_submitted}"
@@ -367,6 +371,7 @@ def submit_quiz_answers(
         if not quiz_row:
             return _fail(f"Quiz {quiz_id} not found.")
         quiz_row.is_submitted = True
+        quiz_row.correct_count = correct
         # <<<
 
         db.commit()

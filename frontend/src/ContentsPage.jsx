@@ -12,7 +12,7 @@ import "./App.css";
 function ContentsPage() {
   const navigate = useNavigate();
   const logout = () => navigate("/");
-  const { courseId } = useParams();             
+  const { courseId, userId } = useParams();             
   const API_BASE = "http://127.0.0.1:8000";
 
   const [activeSection, setActiveSection] = useState("summary");
@@ -40,6 +40,20 @@ const [fc, setFc] = useState({
   generating: false,
 });
 
+// below existing summary/fc state
+const [past, setPast] = useState({
+  items: [],            // [{quiz_id, quiz_title, created_at, correct_count}]
+  loading: false,
+  error: ""
+});
+
+const [quizDetail, setQuizDetail] = useState({
+  data: null,           // {quiz_id, quiz_title, created_at, is_submitted, questions:[...] }
+  loading: false,
+  error: ""
+});
+
+
 
 // NEW – strip headers/bold markers; normalize bullets
 function sanitizeSummary(markdown) {
@@ -57,26 +71,36 @@ function parseDataArray(maybeString) {
   return [];
 }
 
-  // ---------- Dummy Data ----------
-  // const summaries = {
-  //   short: "Short summary: AWS EMR is a cloud service for big data processing.",
-  //   medium:
-  //     "Medium summary: Amazon EMR simplifies processing large datasets using Hadoop and Spark frameworks on AWS.",
-  //   long: "Long summary: Amazon EMR (Elastic MapReduce) is a managed cluster platform for processing massive datasets using frameworks like Apache Hadoop and Apache Spark.",
-  // };
 
-  // const flashcards = [
-  //   { q: "What does EMR stand for?", a: "Elastic MapReduce" },
-  //   { q: "What is Amazon S3 used for?", a: "Object storage service" },
-  //   { q: "Define EC2.", a: "Elastic Compute Cloud for virtual servers" },
-  //   { q: "Purpose of AWS Lambda?", a: "Serverless computing" },
-  //   { q: "What is VPC?", a: "Virtual Private Cloud" },
-  //   { q: "What is IAM?", a: "Identity and Access Management" },
-  //   { q: "Use of CloudFront?", a: "Content Delivery Network (CDN)" },
-  //   { q: "What is DynamoDB?", a: "NoSQL managed database" },
-  //   { q: "Use of CloudWatch?", a: "Monitoring AWS resources" },
-  //   { q: "Purpose of Route 53?", a: "DNS and domain management" },
-  // ];
+function parseMaybeJson(v) {
+  if (Array.isArray(v) || (v && typeof v === "object")) return v;
+  if (typeof v === "string") { try { return JSON.parse(v); } catch {} }
+  return null;
+}
+
+function formatNiceDate(iso) {
+  if (!iso) return "—";
+  const d = new Date(iso);
+
+  const day = d.getDate();
+  const ord = (n) => {
+    const s = ["th", "st", "nd", "rd"];
+    const v = n % 100;
+    return s[(v - 20) % 10] || s[v] || s[0];
+  };
+
+  const month = d.toLocaleString("en-US", { month: "short" }); // e.g., "Nov"
+  const year = d.getFullYear();
+
+  let h = d.getHours();
+  const m = String(d.getMinutes()).padStart(2, "0");
+  const ampm = h >= 12 ? "PM" : "AM";
+  h = h % 12 || 12; // 0 -> 12
+
+  return `${day}${ord(day)} ${month} ${year}, ${h}:${m} ${ampm}`;
+}
+
+
 
   const quizQuestions = Array.from({ length: 10 }, (_, i) => ({
     id: i + 1,
@@ -112,7 +136,7 @@ function parseDataArray(maybeString) {
   // const handleSummarySelect = (type) => setSelectedSummary(type);
   const handleSectionChange = (section) => setActiveSection(section);
   const openQuiz = (quiz) => setSelectedQuiz(quiz);
-  const closeModal = () => setSelectedQuiz(null);
+  // const closeModal = () => setSelectedQuiz(null);
 
 
   // Calls GET /courses/:courseId/summary?summary_length=<short|medium|long>
@@ -206,6 +230,53 @@ async function generateFlashcards() {
 }
 
 
+async function fetchPastQuizzes() {
+  if (!courseId) return;
+  setPast((s) => ({ ...s, loading: true, error: "" }));
+  try {
+    const res = await fetch(`${API_BASE}/courses/${encodeURIComponent(courseId)}/quizzes`);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const json = await res.json();
+    const payload = parseMaybeJson(json.data) || {};
+    const items = (payload.quizzes || []).map(q => ({
+      quiz_id: q.quiz_id,
+      quiz_title: q.quiz_title,
+      created_at: q.created_at,          // ISO8601 string from API
+      correct_count: q.correct_count ?? null
+    }));
+    setPast({ items, loading: false, error: "" });
+  } catch (e) {
+    setPast((s) => ({ ...s, loading: false, error: "Could not fetch past quizzes." }));
+  }
+}
+
+
+async function fetchQuizDetail(quizId) {
+  setQuizDetail({ data: null, loading: true, error: "" });
+  try {
+    const res = await fetch(`${API_BASE}/quizzes/${encodeURIComponent(quizId)}`);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const json = await res.json();
+    const data = parseMaybeJson(json.data);
+    setQuizDetail({ data, loading: false, error: "" });
+  } catch (e) {
+    setQuizDetail({ data: null, loading: false, error: "Could not load quiz." });
+  }
+}
+
+
+function openPastQuiz(quiz) {
+  setSelectedQuiz(quiz);          // keeps {quiz_id, quiz_title, ...}
+  fetchQuizDetail(quiz.quiz_id);
+}
+function closeModal() {
+  setSelectedQuiz(null);
+  setQuizDetail({ data: null, loading: false, error: "" });
+}
+
+
+
+
 useEffect(() => {
   if (activeSection === "summary") {
     fetchSummary("short");  // default selection
@@ -215,8 +286,12 @@ useEffect(() => {
     fetchFlashcards();
   }
 
+  if (activeSection === "quiz" && quizView === "past") {
+    fetchPastQuizzes();
+  }
+
 // eslint-disable-next-line react-hooks/exhaustive-deps
-}, [activeSection, courseId]);
+}, [activeSection, quizView, courseId]);
 
 // useEffect(() => {
 //   if (activeSection === "flashcard") {
@@ -228,7 +303,7 @@ useEffect(() => {
 
   return (
     <div className={styles.page}>
-      <StickyHeader userId={1} onLogout={logout} />
+      <StickyHeader userId={userId} onLogout={logout} />
 
       <div
         style={{
@@ -714,6 +789,44 @@ useEffect(() => {
 
             {/* Past Quizzes */}
             {quizView === "past" && (
+            <div style={{ display: "flex", flexDirection: "column", gap: 12, maxHeight: 420, overflowY: "auto" }}>
+              {past.loading && <div style={{ color: "#374151" }}>Loading past quizzes…</div>}
+              {!past.loading && past.error && <div style={{ color: "#b91c1c", fontWeight: 600 }}>{past.error}</div>}
+              {!past.loading && !past.error && past.items.length === 0 && (
+                <div style={{ color: "#374151" }}>No submitted quizzes yet.</div>
+              )}
+
+              {!past.loading && !past.error && past.items.map((q) => (
+                <div key={q.quiz_id}
+                    style={{
+                      display: "flex", justifyContent: "space-between", alignItems: "center",
+                      backgroundColor: "#f9fafb", padding: 14, borderRadius: 8, border: "1px solid #e5e7eb"
+                    }}>
+                  <div>
+                    <h3 style={{ margin: "0 0 4px 0" }}>{q.quiz_title}</h3>
+                    <p style={{ color: "#6b7280", margin: 0, fontSize: ".9rem" }}>
+                      {/* {q.created_at ? new Date(q.created_at).toLocaleString() : "—"} */}
+                      {q.created_at ? formatNiceDate(q.created_at) : "—"}
+                    </p>
+                  </div>
+                  <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                    {typeof q.correct_count === "number" && (
+                      <span style={{ fontWeight: 600, color: "#2563eb" }}>{q.correct_count}/10</span>
+                    )}
+                    <button
+                      onClick={() => openPastQuiz(q)}
+                      style={{ backgroundColor: "#2563eb", color: "white", border: "none",
+                              borderRadius: 6, padding: "6px 12px", cursor: "pointer" }}>
+                      View
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+
+            {/* {quizView === "past" && (
               <div style={{ display: "flex", flexDirection: "column", gap: "15px", maxHeight: "400px", overflowY: "auto" }}>
                 {pastQuizzes.map((quiz) => (
                   <div
@@ -751,11 +864,14 @@ useEffect(() => {
                   </div>
                 ))}
               </div>
-            )}
+            )} */}
+
+
           </div>
         )}
 
         {/* ---------- MODAL FOR PAST QUIZ ---------- */}
+        
         {selectedQuiz && (
           <div
             style={{
@@ -778,12 +894,15 @@ useEffect(() => {
                 maxWidth: "700px",
                 borderRadius: "12px",
                 padding: "25px",
-                maxHeight: "80vh",
+                maxHeight: "90vh",
                 overflowY: "auto",
               }}
             >
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                <h2>{selectedQuiz.title} — Results</h2>
+                {/* <h2>{selectedQuiz.title} — Results</h2> */}
+                <h2 style={{ margin: 0 }}>
+                  {'Result - ' + selectedQuiz.correct_count + '/10' || `Quizzz #${selectedQuiz.quiz_title.correct_count}`}
+                </h2>
                 <button
                   onClick={closeModal}
                   style={{ background: "none", border: "none", fontSize: "1.5rem", cursor: "pointer" }}
@@ -792,40 +911,44 @@ useEffect(() => {
                 </button>
               </div>
 
-              {quizResults[selectedQuiz.id] ? (
-                quizResults[selectedQuiz.id].map((item, i) => {
-                  const isCorrect = item.chosen === item.correct;
-                  return (
-                    <div
-                      key={i}
-                      style={{
-                        marginBottom: "15px",
-                        borderRadius: "8px",
-                        padding: "12px",
-                        backgroundColor: isCorrect ? "#ecfdf5" : "#fef2f2",
-                        border: `1px solid ${isCorrect ? "#10b981" : "#ef4444"}`,
-                      }}
-                    >
-                      <p style={{ fontWeight: "600" }}>{item.q}</p>
-                      <p>
-                        ✅ Correct:{" "}
-                        <strong style={{ color: "#059669" }}>{item.correct}</strong>
-                      </p>
-                      <p>
-                        🧠 Your Answer:{" "}
-                        <strong style={{ color: isCorrect ? "#059669" : "#dc2626" }}>
-                          {item.chosen}
-                        </strong>
-                      </p>
-                    </div>
-                  );
-                })
-              ) : (
-                <p>No data found for this quiz.</p>
-              )}
+              {quizDetail.loading && <p style={{ color: "#374151" }}>Loading…</p>}
+                    {!quizDetail.loading && quizDetail.error && <p style={{ color: "#b91c1c", fontWeight: 600 }}>{quizDetail.error}</p>}
+
+                    {!quizDetail.loading && quizDetail.data && (
+                      <>
+                        <p style={{ color: "#6b7280", marginTop: 6 }}>
+                          {/* {quizDetail.data.created_at ? new Date(quizDetail.data.created_at).toLocaleString() : "—"} */}
+                          {quizDetail.data.created_at ? formatNiceDate(quizDetail.data.created_at) : "—"}
+                          {quizDetail.data.is_submitted ? " · Submitted" : ""}
+                        </p>
+                        {quizDetail.data.questions.map((item, i) => {
+                          const isCorrect = item.student_selected_index === item.correct_index;
+                          return (
+                            <div key={i}
+                                style={{
+                                  marginBottom: 12, borderRadius: 8, padding: 12,
+                                  backgroundColor: isCorrect ? "#ecfdf5" : "#fef2f2",
+                                  border: `1px solid ${isCorrect ? "#10b981" : "#ef4444"}`
+                                }}>
+                              <p style={{ fontWeight: 600 }}>{item.question}</p>
+                              <p>⭐ Correct: <strong style={{ color: "#059669" }}>{item.options[item.correct_index]}</strong></p>
+                              <p>✏️ Your Answer:{" "}
+                                <strong style={{ color: isCorrect ? "#059669" : "#dc2626" }}>
+                                  {typeof item.student_selected_index === "number"
+                                    ? item.options[item.student_selected_index]
+                                    : "—"}
+                                </strong>
+                              </p>
+                            </div>
+                          );
+                        })}
+                      </>
+                  )}
+              </div>
             </div>
-          </div>
-        )}
+          )}
+
+
       </div>
     </div>
   );

@@ -68,6 +68,7 @@ class Quiz(Base):
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
     is_submitted: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    correct_count: Mapped[Optional[int]] = mapped_column(Integer, nullable=True, default=0)
 
 
 class QuizQuestion(Base):

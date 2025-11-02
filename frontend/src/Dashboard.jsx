@@ -171,12 +171,14 @@ export default function Dashboard() {
 
 
   const openCourse = (course) => {
-  const id = course?.course_id ?? course?.id; // fallback if your key name differs
-  if (!id) return;
-  navigate(`/contentspage/${encodeURIComponent(id)}`, {
-    state: { courseName: course.course_name } // optional: pass name too
-  });
-};
+    const id = course?.course_id ?? course?.id;
+    if (!id) return;
+
+    navigate(`/contentspage/${encodeURIComponent(id)}/${encodeURIComponent(userId)}`, {
+      state: { courseName: course.course_name }
+    });
+  };
+
 
   return (
     <div className={styles.page}>
