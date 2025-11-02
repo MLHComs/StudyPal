@@ -339,3 +339,10 @@ input:focus {
   .footerSpacer { height: 80px; }
   .card { margin-bottom: 24px; } /* extra scroll space below the card */
 }
+
+
+
+.smallStatus{margin-top:8px;font-size:13px;color:#dbe6ff;display:inline-flex;gap:8px;align-items:center}
+.tinySpinner{width:12px;height:12px;border-radius:50%;border:2px solid transparent;border-top-color:#45d2ff;border-right-color:#45d2ff;display:inline-block;animation:spin .8s linear infinite}
+.successText{margin-top:8px;color:#9ff29f;font-weight:700;font-size:13px}
+@keyframes spin{to{transform:rotate(360deg)}}

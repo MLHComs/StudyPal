@@ -1,11 +1,24 @@
 import React, { useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import styles from "./css/SignupLogin.module.css";
 
+const API_BASE = "http://127.0.0.1:8000";
+
 export default function SignupLogin() {
+  const navigate = useNavigate();
+
   const [flipped, setFlipped] = useState(false);
   const [errors, setErrors] = useState({});
 
-  // Use empty values; show suggestions via placeholders instead of prefilled text
+  // signup state
+  const [signingUp, setSigningUp] = useState(false);
+  const [signupErr, setSignupErr] = useState("");
+  const [signupOkMsg, setSignupOkMsg] = useState("");
+
+  // login state
+  const [loggingIn, setLoggingIn] = useState(false);
+  const [loginErr, setLoginErr] = useState("");
+
   const [signup, setSignup] = useState({
     user_firstname: "",
     user_lastname: "",
@@ -26,20 +39,96 @@ export default function SignupLogin() {
   const handleLoginChange = (e) =>
     setLogin((s) => ({ ...s, [e.target.name]: e.target.value }));
 
-  const submitSignup = (e) => {
+  // helper to parse "user_id=2" or {user_id:2}
+  function extractUserId(data) {
+    if (typeof data === "number") return data;
+    if (data && typeof data === "object" && "user_id" in data) return Number(data.user_id);
+    if (typeof data === "string") {
+      const m = data.match(/user_id\s*=?\s*(\d+)/i);
+      if (m) return Number(m[1]);
+    }
+    return null;
+  }
+
+  // ---------------- SIGN UP ----------------
+  const submitSignup = async (e) => {
     e.preventDefault();
+    setSignupErr("");
+    setSignupOkMsg("");
+
     const errs = {};
     if (signup.user_password !== signup.confirm_password) {
-      errs.confirm_password = "Passwords don’t match.";
+      errs.confirm_password = "Passwords don't match.";
     }
     setErrors(errs);
     if (Object.keys(errs).length) return;
-    console.log("SIGNUP PAYLOAD:", signup);
+
+    try {
+      setSigningUp(true);
+
+      const payload = {
+        user_email: signup.user_email.trim(),
+        user_password: signup.user_password,
+        user_firstname: signup.user_firstname.trim(),
+        user_lastname: signup.user_lastname.trim(),
+        user_university: signup.user_university.trim(),
+        user_currentsem: signup.user_currentsem.trim(),
+      };
+
+      const res = await fetch(`${API_BASE}/auth/signup`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+
+      if (!res.ok) throw new Error((await res.text()) || `HTTP ${res.status}`);
+      const json = await res.json();
+
+      // success UX: flip to login
+      setSignupOkMsg("Account created! Please log in.");
+      // optionally prefill email on the login side
+      setLogin((l) => ({ ...l, email: payload.user_email }));
+      setFlipped(true);
+    } catch (err) {
+      setSignupErr(err?.message?.slice(0, 200) || "Sign up failed. Please try again.");
+    } finally {
+      setSigningUp(false);
+    }
   };
 
-  const submitLogin = (e) => {
+  // ---------------- LOG IN ----------------
+  const submitLogin = async (e) => {
     e.preventDefault();
-    console.log("LOGIN PAYLOAD:", login);
+    setLoginErr("");
+    try {
+      setLoggingIn(true);
+      const payload = {
+        user_email: login.email.trim(),
+        user_password: login.password,
+      };
+
+      const res = await fetch(`${API_BASE}/auth/login`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+
+      if (!res.ok) throw new Error((await res.text()) || `HTTP ${res.status}`);
+      const json = await res.json();
+
+      const uid = extractUserId(json?.data);
+      if (!uid) throw new Error("Could not read user_id from response.");
+
+      // store a couple bits if you want
+      localStorage.setItem("user_id", String(uid));
+
+      // go to dashboard
+      navigate(`/dashboard/${uid}`);
+    } catch (err) {
+      setLoginErr(err?.message?.slice(0, 200) || "Login failed. Please try again.");
+    } finally {
+      setLoggingIn(false);
+    }
   };
 
   const cardClasses = useMemo(
@@ -49,15 +138,12 @@ export default function SignupLogin() {
 
   return (
     <div className={styles.pageWrapper}>
-      {/* Background video */}
       <video autoPlay loop muted className={styles.bgVideo}>
         <source src="/bg.mp4" type="video/mp4" />
       </video>
       <div className={styles.overlay} />
 
-      {/* Two-column layout */}
       <main className={styles.main}>
-        {/* Left section */}
         <section className={styles.left}>
           <h1 className={styles.title}>
             Study <span className={styles.highlight}>Smarter</span>.<br />
@@ -69,29 +155,18 @@ export default function SignupLogin() {
           </p>
         </section>
 
-        {/* Right section */}
         <section className={styles.right}>
           <div className={cardClasses} aria-live="polite">
-           
+            {/* FRONT — SIGN UP */}
             <div className={`${styles.face} ${styles.front}`}>
               <h2 className={styles.panelTitle}>Sign Up</h2>
 
-              
               <div className={styles.socialRow}>
-                <a
-                  href="/auth/google/start"
-                  className={`${styles.socialBtn} ${styles.googleLink}`}
-                  aria-label="Continue with Google"
-                >
+                <a href="/auth/google/start" className={`${styles.socialBtn} ${styles.googleLink}`}>
                   <img src="/Google.png" alt="" aria-hidden="true" />
                   Continue with Google
                 </a>
-
-                <a
-                  href="/auth/microsoft/start"
-                  className={`${styles.socialBtn} ${styles.microsoft}`}
-                  aria-label="Continue with Microsoft"
-                >
+                <a href="/auth/microsoft/start" className={`${styles.socialBtn} ${styles.microsoft}`}>
                   <img src="/Microsoft_logo.svg.png" alt="" aria-hidden="true" />
                   Continue with Microsoft
                 </a>
@@ -202,7 +277,18 @@ export default function SignupLogin() {
                   )}
                 </div>
 
-                <button type="submit" className={styles.submitBtn}>Create account</button>
+                <button type="submit" className={styles.submitBtn} disabled={signingUp}>
+                  {signingUp ? "Creating account…" : "Create account"}
+                </button>
+
+                {/* tiny inline status / messages */}
+                {signingUp && (
+                  <p className={styles.smallStatus}>
+                    <span className={styles.tinySpinner} aria-hidden /> Sending your details…
+                  </p>
+                )}
+                {signupErr && <p className={styles.errorText}>{signupErr}</p>}
+                {signupOkMsg && <p className={styles.successText}>{signupOkMsg}</p>}
 
                 <p className={styles.toggleText}>
                   Already have an account? <span onClick={handleFlip}>Log in</span>
@@ -210,25 +296,16 @@ export default function SignupLogin() {
               </form>
             </div>
 
-          
+            {/* BACK — LOGIN */}
             <div className={`${styles.face} ${styles.back}`}>
               <h2 className={styles.panelTitle}>Welcome Back</h2>
 
               <div className={styles.socialRow}>
-                <a
-                  href="/auth/google/start"
-                  className={`${styles.socialBtn} ${styles.googleLink}`}
-                  aria-label="Continue with Google"
-                >
+                <a href="/auth/google/start" className={`${styles.socialBtn} ${styles.googleLink}`}>
                   <img src="/Google.png" alt="" aria-hidden="true" />
                   Continue with Google
                 </a>
-
-                <a
-                  href="/auth/microsoft/start"
-                  className={`${styles.socialBtn} ${styles.microsoft}`}
-                  aria-label="Continue with Microsoft"
-                >
+                <a href="/auth/microsoft/start" className={`${styles.socialBtn} ${styles.microsoft}`}>
                   <img src="/Microsoft_logo.svg.png" alt="" aria-hidden="true" />
                   Continue with Microsoft
                 </a>
@@ -272,20 +349,29 @@ export default function SignupLogin() {
                   <a className={styles.link} href="/forgot-password">Forgot password?</a>
                 </div>
 
-                <button type="submit" className={styles.submitBtn}>Log in</button>
+                <button type="submit" className={styles.submitBtn} disabled={loggingIn}>
+                  {loggingIn ? "Logging in…" : "Log in"}
+                </button>
+
+                {/* tiny inline status / error */}
+                {loggingIn && (
+                  <p className={styles.smallStatus}>
+                    <span className={styles.tinySpinner} aria-hidden /> Checking your credentials…
+                  </p>
+                )}
+                {loginErr && <p className={styles.errorText}>{loginErr}</p>}
 
                 <p className={styles.toggleText}>
                   New here? <span onClick={handleFlip}>Create an account</span>
                 </p>
               </form>
             </div>
-            
           </div>
         </section>
       </main>
+
       <div className={styles.footerSpacer} aria-hidden="true" />
 
-      {/* Footer */}
       <footer className={styles.footer}>
         <div className={styles.footerInner}>
           <span>© {new Date().getFullYear()} StudyBuddy</span>

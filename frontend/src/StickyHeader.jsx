@@ -80,9 +80,9 @@ export default function StickyHeader({ userId, onLogout, fetchUrl }) {
       </div>
 
       <div className={styles.right}>
-        <span className={styles.userChip}>
+        {/* <span className={styles.userChip}>
           User #{userId}
-        </span>
+        </span> */}
         <button className={styles.logoutBtn} onClick={onLogout}>
           Logout
         </button>
