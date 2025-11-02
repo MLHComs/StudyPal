@@ -4,6 +4,7 @@ import { useNavigate, useParams } from "react-router-dom";
 import StickyHeader from "./StickyHeader";
 // import { useNavigate } from "react-router-dom";
 import styles from "./css/Dashboard.module.css";
+import quizIcon from '../public/quiz_icon.svg';
 
 
 
@@ -49,6 +50,13 @@ const [past, setPast] = useState({
 
 const [quizDetail, setQuizDetail] = useState({
   data: null,           // {quiz_id, quiz_title, created_at, is_submitted, questions:[...] }
+  loading: false,
+  error: ""
+});
+
+// NEW: state for the just-generated quiz in the "New" tab
+const [newQuiz, setNewQuiz] = useState({
+  data: null,      // shape: { quiz_id, quiz_title, created_at, questions:[...] }
   loading: false,
   error: ""
 });
@@ -272,6 +280,41 @@ function openPastQuiz(quiz) {
 function closeModal() {
   setSelectedQuiz(null);
   setQuizDetail({ data: null, loading: false, error: "" });
+}
+
+
+// POST /courses/:courseId/quiz  ->  GET /quizzes/:quiz_id
+async function createQuizAndLoad() {
+  if (!courseId) return;
+  setNewQuiz({ data: null, loading: true, error: "" });
+
+  try {
+    // 1) Create quiz
+    const res = await fetch(`${API_BASE}/courses/${encodeURIComponent(courseId)}/quiz`, {
+      method: "POST"
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const json = await res.json();
+    const created = parseMaybeJson(json.data) || {};
+
+    // robustly pull quiz_id
+    const quizId =
+      created.quiz_id ??
+      created.id ??
+      (created.quiz && created.quiz.quiz_id);
+
+    if (!quizId) throw new Error("quiz_id missing in create response");
+
+    // 2) Fetch the created quiz
+    const res2 = await fetch(`${API_BASE}/quizzes/${encodeURIComponent(quizId)}`);
+    if (!res2.ok) throw new Error(`HTTP ${res2.status}`);
+    const json2 = await res2.json();
+    const data = parseMaybeJson(json2.data);
+
+    setNewQuiz({ data, loading: false, error: "" });
+  } catch (e) {
+    setNewQuiz({ data: null, loading: false, error: "Could not generate quiz. Please try again." });
+  }
 }
 
 
@@ -753,6 +796,114 @@ useEffect(() => {
 
             {/* New Quiz View */}
             {quizView === "new" && (
+            <>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+                {/* <h2 style={{ margin: 0 }}> <img src={quizIcon} alt="Quiz Icon" width={25} height={25} /> New Quiz</h2> */}
+                {newQuiz.data && (
+                  <h2
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '8px',
+                      margin: 0
+                    }}
+                  >
+                    <img src={quizIcon} alt="Quiz Icon" width={25} height={25} />
+                    New Quiz
+                  </h2>
+                )}
+
+                <button
+                  onClick={createQuizAndLoad}
+                  disabled={newQuiz.loading}
+                  style={{
+                    backgroundColor: "#2563eb",
+                    color: "white",
+                    padding: "8px 14px",
+                    border: "none",
+                    borderRadius: 6,
+                    cursor: "pointer",
+                    fontWeight: 600,
+                    opacity: newQuiz.loading ? 0.85 : 1
+                  }}
+                >
+                  {newQuiz.loading ? "Generating…" : "Generate Quiz"}
+                </button>
+              </div>
+
+              {newQuiz.error && (
+                <div style={{ color: "#b91c1c", fontWeight: 600, marginBottom: 12 }}>{newQuiz.error}</div>
+              )}
+
+              {!newQuiz.loading && newQuiz.data && (
+                <>
+                  <p style={{ color: "#6b7280", marginTop: 2, marginBottom: 4 }}>
+                    {newQuiz.data.quiz_title ? newQuiz.data.quiz_title + " · " : ""}
+                    {newQuiz.data.created_at ? formatNiceDate(newQuiz.data.created_at) : "—"}
+                  </p>
+
+                  {(newQuiz.data.questions || []).map((q, i) => (
+                    <div key={i} style={{ marginBottom: 16, borderBottom: "1px solid #e5e7eb", paddingBottom: 12 }}>
+                      <p style={{ fontWeight: 600 }}>
+                        Q{i + 1}. {q.question}
+                      </p>
+                      <ul className="quizOptions">
+                        {(q.options || []).map((opt, idx) => (
+                          <li key={idx} className="quizOptionItem">
+                            <label className="quizOptionLabel">
+                              <input
+                                type="radio"
+                                name={`q-${i}`}
+                                value={idx}
+                                className="quizOptionRadio"
+                              />
+                              {opt}
+                            </label>
+                          </li>
+                        ))}
+                      </ul>
+                      {/* <ul style={{ listStyle: "none", paddingLeft: 0, color: "black", fontWeight: 500 }}>
+                        {(q.options || []).map((opt, idx) => (
+                          <li key={idx} style={{ margin: "6px 0" }}>
+                            <label>
+                              <input
+                                type="radio"
+                                name={`q-${i}`}
+                                value={idx}
+                                style={{ marginRight: 6 }}
+                              />
+                              {opt}
+                            </label>
+                          </li>
+                        ))}
+                      </ul> */}
+                    </div>
+                  ))}
+
+                  {/* (Optional) keep your submit hook here later */}
+                  <button
+                    style={{
+                      backgroundColor: "#2563eb",
+                      color: "white",
+                      padding: "10px 20px",
+                      border: "none",
+                      borderRadius: "6px",
+                      fontWeight: "600",
+                      marginTop: "6px",
+                      cursor: "pointer"
+                    }}
+                  >
+                    Submit Quiz
+                  </button>
+                </>
+              )}
+            </>
+          )}
+
+
+
+            {/* {quizView === "new" && (
               <>
                 <h2 style={{ marginBottom: "10px" }}>🧠 Quiz (10 Questions)</h2>
                 {quizQuestions.map((q) => (
@@ -785,7 +936,11 @@ useEffect(() => {
                   Submit Quiz
                 </button>
               </>
-            )}
+            )} */}
+
+
+
+
 
             {/* Past Quizzes */}
             {quizView === "past" && (
