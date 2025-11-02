@@ -1,17 +1,20 @@
 # backend/app.py
 import os
+import io
 import uvicorn
 from fastapi import FastAPI, File, UploadFile
 from dotenv import load_dotenv
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
-
+from fastapi import HTTPException
 from apis.auth_api import SignUpAPI, LoginAPI
 from models import init_models  # from models/db_model.py
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import List, Literal
 import google.generativeai as genai
+from fastapi.responses import StreamingResponse
+from elevenlabs.client import ElevenLabs
 
 
 from PyPDF2 import PdfReader
@@ -57,6 +60,25 @@ SessionLocal = sessionmaker(bind=engine, autoflush=False, autocommit=False, futu
 init_models(engine)
 
 genai.configure(api_key=os.getenv("GOOGLE_API_KEY"))
+
+# --- ElevenLabs TTS setup ---
+ELEVENLABS_API_KEY = os.getenv("ELEVENLABS_API_KEY")
+eleven_client = None
+if ELEVENLABS_API_KEY:
+    try:
+        eleven_client = ElevenLabs(api_key=ELEVENLABS_API_KEY)
+    except Exception as _e:
+        # Do not crash app if TTS fails to init; endpoint will return 500 if used
+        eleven_client = None
+
+# Map UI language names → ElevenLabs voice IDs (replace with your own voices as desired)
+VOICE_BY_LANG = {
+    "English": "TZXnHeB62zELHhRDHuu1",  # sample multilingual-capable voice
+    "Hindi":   "TZXnHeB62zELHhRDHuu1",  # sample multilingual-capable voice
+    "Marathi": "TZXnHeB62zELHhRDHuu1",  # you used this in your snippet
+}
+ELEVEN_MODEL_ID = "eleven_multilingual_v2"
+
 
 # --- FastAPI + URL mappings ---
 app = FastAPI(title="APIs")
@@ -109,6 +131,11 @@ class ChatRequest(BaseModel):
 
 class ChatResponse(BaseModel):
     answer: str
+
+class TTSRequest(BaseModel):
+    text: str
+    language: str = "English"  # "English" | "Hindi" | "Marathi"
+
 
 # Global variable to store extracted text
 pdf_text_cache = ""
@@ -167,6 +194,48 @@ def chat(req: ChatRequest):
     except Exception as e:
         print("Error during Gemini API call:", e)
         return ChatResponse(answer="⚠️ Error processing request.")
+
+# ------------- ElevenLabs endpoint ---------------#
+@app.post("/api/tts")
+async def generate_tts(req: TTSRequest):
+    """
+    Generate speech audio (MP3) from text using ElevenLabs.
+    Body: {"text": "...", "language": "English|Hindi|Marathi"}
+    Returns: audio/mpeg stream.
+    """
+    text = (req.text or "").strip()
+    if not text:
+        raise HTTPException(status_code=400, detail="Missing text")
+
+    global eleven_client
+    if eleven_client is None:
+        api_key = os.getenv("ELEVENLABS_API_KEY")
+        if not api_key:
+            raise HTTPException(status_code=503, detail="TTS unavailable: ELEVENLABS_API_KEY not set")
+        try:
+            eleven_client = ElevenLabs(api_key=api_key)
+        except Exception as e:
+            print("TTS init error:", e)
+            raise HTTPException(status_code=500, detail="TTS initialization failed")
+
+    voice_id = VOICE_BY_LANG.get(req.language, VOICE_BY_LANG["English"])
+
+    try:
+        audio_iter = eleven_client.text_to_speech.convert(
+            text=text,
+            voice_id=voice_id,
+            model_id=ELEVEN_MODEL_ID,
+            output_format="mp3_44100_128",
+        )
+
+        def stream():
+            for chunk in audio_iter:
+                yield chunk
+
+        return StreamingResponse(stream(), media_type="audio/mpeg")
+    except Exception as e:
+        print("TTS error:", e)
+        raise HTTPException(status_code=500, detail="TTS generation failed")
 
 
 
