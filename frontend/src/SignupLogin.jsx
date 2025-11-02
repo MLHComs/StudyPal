@@ -7,7 +7,7 @@ const API_BASE = "http://127.0.0.1:8000";
 export default function SignupLogin() {
   const navigate = useNavigate();
 
-  const [flipped, setFlipped] = useState(false);
+  const [flipped, setFlipped] = useState(true);
   const [errors, setErrors] = useState({});
 
   // signup state

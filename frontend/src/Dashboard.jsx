@@ -169,6 +169,15 @@ export default function Dashboard() {
     }
   }
 
+
+  const openCourse = (course) => {
+  const id = course?.course_id ?? course?.id; // fallback if your key name differs
+  if (!id) return;
+  navigate(`/contentspage/${encodeURIComponent(id)}`, {
+    state: { courseName: course.course_name } // optional: pass name too
+  });
+};
+
   return (
     <div className={styles.page}>
       <StickyHeader userId={userId} onLogout={logout} />
@@ -240,7 +249,8 @@ export default function Dashboard() {
                   <button
                     className={styles.openBtn}
                     title="Open course"
-                    onClick={() => alert(`Open: ${c.course_name}`)}
+                     onClick={() => openCourse(c)}
+                    //onClick={() => alert(`Open: ${c.course_name}`)}
                   >
                     Open
                   </button>
