@@ -16,7 +16,7 @@ function ContentsPage() {
   const { courseId, userId } = useParams();             
   const API_BASE = "http://127.0.0.1:8000";
 
-  const [activeSection, setActiveSection] = useState("summary");
+  const [activeSection, setActiveSection] = useState("SUMMARY");
   // const [selectedSummary, setSelectedSummary] = useState(null);
   const [summary, setSummary] = useState({
     length: "short",     
@@ -60,6 +60,20 @@ const [newQuiz, setNewQuiz] = useState({
   loading: false,
   error: ""
 });
+
+
+// NEW: answers and submit UI
+const [answers, setAnswers] = useState({});        // { [qIndex]: optionIndex }
+const [submitting, setSubmitting] = useState(false);
+const [submitError, setSubmitError] = useState("");
+const [scoreBanner, setScoreBanner] = useState(""); // e.g., "You scored 7/10"
+
+
+function onPickAnswer(qIndex, optionIndex) {
+  setAnswers(prev => ({ ...prev, [qIndex]: optionIndex }));
+  if (submitError) setSubmitError("");
+}
+
 
 
 
@@ -287,6 +301,9 @@ function closeModal() {
 async function createQuizAndLoad() {
   if (!courseId) return;
   setNewQuiz({ data: null, loading: true, error: "" });
+  setAnswers({});
+  setSubmitError("");
+  setScoreBanner("");
 
   try {
     // 1) Create quiz
@@ -319,17 +336,71 @@ async function createQuizAndLoad() {
 
 
 
+async function submitNewQuiz() {
+  if (!newQuiz?.data?.quiz_id) return;
+  const quizId = newQuiz.data.quiz_id;
+  const questions = newQuiz.data.questions || [];
+
+  // Validate: all questions must be answered
+  if (Object.keys(answers).length !== questions.length) {
+    setSubmitError("Please answer all questions before submitting.");
+    return;
+  }
+
+  // Build payload [{ quiz_id, question_index: 1-based, student_selected_index }]
+  const payload = questions.map((_, idx) => ({
+    quiz_id: quizId,
+    question_index: idx + 1,
+    student_selected_index: answers[idx],
+  }));
+
+  setSubmitting(true);
+  setSubmitError("");
+  try {
+    const res = await fetch(`${API_BASE}/quizzes/${encodeURIComponent(quizId)}/answers`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const json = await res.json();
+
+    // Your API returns correct_count inside data (sometimes as string)
+    const data = parseMaybeJson(json.data) || {};
+    const cc = typeof data.correct_count === "number" ? data.correct_count : null;
+
+    setScoreBanner(
+      typeof cc === "number" ? `You scored ${cc}/10` : "Submitted! Score recorded."
+    );
+
+    // Jump to Past Quizzes and refresh
+    // setQuizView("past");
+    // await fetchPastQuizzes();
+
+    // Optional: clear current quiz selections
+    setAnswers({});
+  } catch (e) {
+    setSubmitError("Could not submit quiz. Please try again.");
+  } finally {
+    setSubmitting(false);
+  }
+}
+
+
+
+
+
 
 useEffect(() => {
-  if (activeSection === "summary") {
+  if (activeSection === "SUMMARY") {
     fetchSummary("short");  // default selection
   }
 
-   if (activeSection === "flashcard") {
+   if (activeSection === "FLASHCARD") {
     fetchFlashcards();
   }
 
-  if (activeSection === "quiz" && quizView === "past") {
+  if (activeSection === "QUIZ" && quizView === "past") {
     fetchPastQuizzes();
   }
 
@@ -364,7 +435,7 @@ useEffect(() => {
 
         {/* --- Section Tabs --- */}
         <div style={{ display: "flex", gap: "20px", marginBottom: "30px" }}>
-          {["summary", "flashcard", "quiz"].map((section) => (
+          {["SUMMARY", "FLASHCARD", "QUIZ"].map((section) => (
             <button
               key={section}
               onClick={() => handleSectionChange(section)}
@@ -384,7 +455,7 @@ useEffect(() => {
         </div>
 
         {/* ---------- SUMMARY SECTION ---------- */}
-        {activeSection === "summary" && (
+        {activeSection === "SUMMARY" && (
           <div
             style={{
               width: "100%",
@@ -526,7 +597,7 @@ useEffect(() => {
         )}
 
         {/* ---------- FLASHCARD SECTION ---------- */}
-        {activeSection === "flashcard" && (
+        {activeSection === "FLASHCARD" && (
             <div
               style={{
                 width: "100%",
@@ -743,7 +814,7 @@ useEffect(() => {
         )} */}
 
         {/* ---------- QUIZ SECTION ---------- */}
-        {activeSection === "quiz" && (
+        {activeSection === "QUIZ" && (
           <div
             style={{
               width: "100%",
@@ -843,6 +914,21 @@ useEffect(() => {
                     {newQuiz.data.created_at ? formatNiceDate(newQuiz.data.created_at) : "—"}
                   </p>
 
+                  {scoreBanner && (
+                    <div style={{
+                      margin: "6px 0 10px",
+                      padding: "10px 12px",
+                      borderRadius: 8,
+                      background: "#ecfdf5",
+                      border: "1px solid #10b981",
+                      color: "#065f46",
+                      fontWeight: 700
+                    }}>
+                      {scoreBanner}
+                    </div>
+                  )}
+
+
                   {(newQuiz.data.questions || []).map((q, i) => (
                     <div key={i} style={{ marginBottom: 16, borderBottom: "1px solid #e5e7eb", paddingBottom: 12 }}>
                       <p style={{ fontWeight: 600 }}>
@@ -857,32 +943,58 @@ useEffect(() => {
                                 name={`q-${i}`}
                                 value={idx}
                                 className="quizOptionRadio"
+                                checked={answers[i] === idx}
+                                onChange={() => onPickAnswer(i, idx)}
                               />
                               {opt}
                             </label>
                           </li>
                         ))}
                       </ul>
-                      {/* <ul style={{ listStyle: "none", paddingLeft: 0, color: "black", fontWeight: 500 }}>
-                        {(q.options || []).map((opt, idx) => (
-                          <li key={idx} style={{ margin: "6px 0" }}>
-                            <label>
-                              <input
-                                type="radio"
-                                name={`q-${i}`}
-                                value={idx}
-                                style={{ marginRight: 6 }}
-                              />
-                              {opt}
-                            </label>
-                          </li>
-                        ))}
-                      </ul> */}
+                     
                     </div>
                   ))}
 
                   {/* (Optional) keep your submit hook here later */}
+
+                  {submitError && (
+                    <div style={{
+                      marginTop: 6,
+                      padding: "8px 10px",
+                      borderRadius: 8,
+                      background: "#fef2f2",
+                      border: "1px solid #fecaca",
+                      color: "#b91c1c",
+                      fontWeight: 700
+                    }}>
+                      {submitError}
+                    </div>
+                  )}
+
+
                   <button
+                    onClick={submitNewQuiz}
+                    disabled={
+                      submitting ||
+                      (newQuiz?.data?.questions?.length ?? 0) === 0 ||
+                      Object.keys(answers).length !== (newQuiz?.data?.questions?.length ?? 0)
+                    }
+                    style={{
+                      backgroundColor: "#2563eb",
+                      color: "white",
+                      padding: "10px 20px",
+                      border: "none",
+                      borderRadius: "6px",
+                      fontWeight: "600",
+                      marginTop: "6px",
+                      cursor: "pointer",
+                      opacity: submitting ? 0.85 : 1
+                    }}
+                  >
+                    {submitting ? "Submitting…" : "Submit Quiz"}
+                  </button>
+
+                  {/* <button
                     style={{
                       backgroundColor: "#2563eb",
                       color: "white",
@@ -895,7 +1007,7 @@ useEffect(() => {
                     }}
                   >
                     Submit Quiz
-                  </button>
+                  </button> */}
                 </>
               )}
             </>
