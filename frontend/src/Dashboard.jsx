@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState, useRef } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import styles from "./css/Dashboard.module.css";
 import StickyHeader from "./StickyHeader";
+import { API_BASE_URL } from "./config";
 
 function normalizeCourses(json) {
   if (!json) return [];
@@ -26,12 +27,12 @@ export default function Dashboard() {
   const [createErr, setCreateErr] = useState("");
   const [files, setFiles] = useState([]); // <-- NEW
 
-  const API_BASE = "http://127.0.0.1:8000";
+  // const API_BASE = "http://127.0.0.1:8000";
 
   async function fetchCourses() {
     setState({ loading: true, error: "" });
     try {
-      const res = await fetch(`${API_BASE}/courses?user_id=${encodeURIComponent(userId)}`);
+      const res = await fetch(`${API_BASE_URL}/courses?user_id=${encodeURIComponent(userId)}`);
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const json = await res.json();
       setCourses(normalizeCourses(json));

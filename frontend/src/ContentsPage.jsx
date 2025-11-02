@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
+import { API_BASE_URL } from "./config";
 
 import StickyHeader from "./StickyHeader";
 // import { useNavigate } from "react-router-dom";
@@ -12,7 +13,7 @@ function ContentsPage() {
   const navigate = useNavigate();
   const logout = () => navigate("/");
   const { courseId, userId } = useParams();             
-  const API_BASE = "http://127.0.0.1:8000";
+  // const API_BASE = "http://127.0.0.1:8000";
 
   const [activeSection, setActiveSection] = useState("SUMMARY");
   // const [selectedSummary, setSelectedSummary] = useState(null);
@@ -166,7 +167,7 @@ function formatNiceDate(iso) {
 
   setSummary((s) => ({ ...s, loading: true, error: "", length, text: "" }));
   try {
-    const url = `${API_BASE}/courses/${encodeURIComponent(courseId)}/summary?summary_length=${encodeURIComponent(length)}`;
+    const url = `${API_BASE_URL}/courses/${encodeURIComponent(courseId)}/summary?summary_length=${encodeURIComponent(length)}`;
     const res = await fetch(url);
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const json = await res.json();
@@ -210,7 +211,7 @@ async function translateSummaryTo(lang) {
 
   try {
     setTranslating(true);
-    const res = await fetch(`${API_BASE}/translate`, {
+    const res = await fetch(`${API_BASE_URL}/translate`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -237,7 +238,7 @@ async function generateSummary() {
   setSummary((s) => ({ ...s, error: "" }));
   setGenerating(true);
   try {
-    const res = await fetch(`${API_BASE}/courses/${encodeURIComponent(courseId)}/summary`, {
+    const res = await fetch(`${API_BASE_URL}/courses/${encodeURIComponent(courseId)}/summary`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ summary_length: summary.length }),
@@ -258,7 +259,7 @@ async function fetchFlashcards() {
   if (!courseId) return;
   setFc((s) => ({ ...s, loading: true, error: "" }));
   try {
-    const res = await fetch(`${API_BASE}/courses/${encodeURIComponent(courseId)}/flashcards`);
+    const res = await fetch(`${API_BASE_URL}/courses/${encodeURIComponent(courseId)}/flashcards`);
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const json = await res.json();
 
@@ -280,7 +281,7 @@ async function generateFlashcards() {
   if (!courseId) return;
   setFc((s) => ({ ...s, generating: true, error: "" }));
   try {
-    const res = await fetch(`${API_BASE}/courses/${encodeURIComponent(courseId)}/flashcards`, {
+    const res = await fetch(`${API_BASE_URL}/courses/${encodeURIComponent(courseId)}/flashcards`, {
       method: "POST",
     });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -296,7 +297,7 @@ async function fetchPastQuizzes() {
   if (!courseId) return;
   setPast((s) => ({ ...s, loading: true, error: "" }));
   try {
-    const res = await fetch(`${API_BASE}/courses/${encodeURIComponent(courseId)}/quizzes`);
+    const res = await fetch(`${API_BASE_URL}/courses/${encodeURIComponent(courseId)}/quizzes`);
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const json = await res.json();
     const payload = parseMaybeJson(json.data) || {};
@@ -316,7 +317,7 @@ async function fetchPastQuizzes() {
 async function fetchQuizDetail(quizId) {
   setQuizDetail({ data: null, loading: true, error: "" });
   try {
-    const res = await fetch(`${API_BASE}/quizzes/${encodeURIComponent(quizId)}`);
+    const res = await fetch(`${API_BASE_URL}/quizzes/${encodeURIComponent(quizId)}`);
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const json = await res.json();
     const data = parseMaybeJson(json.data);
@@ -347,7 +348,7 @@ async function createQuizAndLoad() {
 
   try {
   
-    const res = await fetch(`${API_BASE}/courses/${encodeURIComponent(courseId)}/quiz`, {
+    const res = await fetch(`${API_BASE_URL}/courses/${encodeURIComponent(courseId)}/quiz`, {
       method: "POST"
     });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -363,7 +364,7 @@ async function createQuizAndLoad() {
     if (!quizId) throw new Error("quiz_id missing in create response");
 
  
-    const res2 = await fetch(`${API_BASE}/quizzes/${encodeURIComponent(quizId)}`);
+    const res2 = await fetch(`${API_BASE_URL}/quizzes/${encodeURIComponent(quizId)}`);
     if (!res2.ok) throw new Error(`HTTP ${res2.status}`);
     const json2 = await res2.json();
     const data = parseMaybeJson(json2.data);
@@ -397,7 +398,7 @@ async function submitNewQuiz() {
   setSubmitting(true);
   setSubmitError("");
   try {
-    const res = await fetch(`${API_BASE}/quizzes/${encodeURIComponent(quizId)}/answers`, {
+    const res = await fetch(`${API_BASE_URL}/quizzes/${encodeURIComponent(quizId)}/answers`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
@@ -429,7 +430,7 @@ async function speakCurrentSummary() {
 
   setSpeaking(true);
   try {
-    const res = await fetch(`${API_BASE}/tts`, {
+    const res = await fetch(`${API_BASE_URL}/tts`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -493,7 +494,7 @@ async function toggleSpeakCurrentSummary() {
   setSpeaking(true);
   setTtsLoading(true);
   try {
-    const res = await fetch(`${API_BASE}/tts`, {
+    const res = await fetch(`${API_BASE_URL}/tts`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",

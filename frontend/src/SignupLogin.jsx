@@ -1,8 +1,9 @@
 import React, { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import styles from "./css/SignupLogin.module.css";
+import { API_BASE_URL } from "./config";
 
-const API_BASE = "http://127.0.0.1:8000";
+// const API_BASE = "http://127.0.0.1:8000";
 
 export default function SignupLogin() {
   const navigate = useNavigate();
@@ -75,7 +76,7 @@ export default function SignupLogin() {
         user_currentsem: signup.user_currentsem.trim(),
       };
 
-      const res = await fetch(`${API_BASE}/auth/signup`, {
+      const res = await fetch(`${API_BASE_URL}/auth/signup`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
@@ -107,7 +108,7 @@ export default function SignupLogin() {
         user_password: login.password,
       };
 
-      const res = await fetch(`${API_BASE}/auth/login`, {
+      const res = await fetch(`${API_BASE_URL}/auth/login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),

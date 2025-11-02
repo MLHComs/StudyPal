@@ -2,6 +2,8 @@ import React, { useEffect, useState } from "react";
 import styles from "./css/StickyHeader.module.css";
 import { useNavigate, useParams } from "react-router-dom";
 
+import { API_BASE_URL } from "./config";
+
 function normalizeUser(json) {
   if (!json) return null;
   let data = json.data ?? json;
@@ -36,10 +38,10 @@ export default function CommunityHeader({ userId, onLogout, fetchUrl }) {
           res = await fetch(fetchUrl);
         } else {
           // Attempt REST style first
-          res = await fetch(`http://localhost:8000/users/${encodeURIComponent(userId)}`);
+          res = await fetch(`${API_BASE_URL}/users/${encodeURIComponent(userId)}`);
           if (!res.ok) {
             // Fallback: query param style
-            res = await fetch(`http://localhost:8000/user?user_id=${encodeURIComponent(userId)}`);
+            res = await fetch(`${API_BASE_URL}/user?user_id=${encodeURIComponent(userId)}`);
           }
         }
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
