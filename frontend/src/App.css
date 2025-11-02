@@ -1,4 +1,13 @@
-/* Quiz options: ensure they aren't muted/disabled-looking */
+@import url('https://fonts.googleapis.com/css2?family=Dancing+Script:wght@600;700&display=swap');
+
+.cursiveTitle {
+  font-family: "Dancing Script", cursive;
+  font-weight: 700;
+  letter-spacing: .3px;
+  line-height: 1.1;
+}
+
+
 .quizOptions { list-style: none; padding-left: 0; margin: 0; }
 .quizOptionItem { margin: 6px 0; }
 

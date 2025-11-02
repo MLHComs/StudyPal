@@ -30,10 +30,9 @@ function ContentsPage() {
   const [quizView, setQuizView] = useState("new");
   const [selectedQuiz, setSelectedQuiz] = useState(null);
 
-  // NEW
 const [generating, setGenerating] = useState(false);
 
-// ✅ NEW: flashcards state bundle
+
 const [fc, setFc] = useState({
   items: [],        // [{flashcard_id, card_index, front_text, back_text}, ...]
   loading: false,
@@ -54,7 +53,7 @@ const [quizDetail, setQuizDetail] = useState({
   error: ""
 });
 
-// NEW: state for the just-generated quiz in the "New" tab
+
 const [newQuiz, setNewQuiz] = useState({
   data: null,      // shape: { quiz_id, quiz_title, created_at, questions:[...] }
   loading: false,
@@ -62,11 +61,35 @@ const [newQuiz, setNewQuiz] = useState({
 });
 
 
-// NEW: answers and submit UI
-const [answers, setAnswers] = useState({});        // { [qIndex]: optionIndex }
+
+const [answers, setAnswers] = useState({});        
 const [submitting, setSubmitting] = useState(false);
 const [submitError, setSubmitError] = useState("");
-const [scoreBanner, setScoreBanner] = useState(""); // e.g., "You scored 7/10"
+const [scoreBanner, setScoreBanner] = useState(""); 
+
+
+// course header meta
+const [courseMeta, setCourseMeta] = useState({
+  name: "",
+  loading: false,
+  error: ""
+});
+
+
+async function fetchCourseMeta() {
+  if (!courseId) return;
+  setCourseMeta(s => ({ ...s, loading: true, error: "" }));
+  try {
+    const res = await fetch(`${API_BASE}/courses/${encodeURIComponent(courseId)}`);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const json = await res.json();
+    const data = parseMaybeJson(json.data) || json.data || {};
+    setCourseMeta({ name: data.course_name || "", loading: false, error: "" });
+  } catch (e) {
+    setCourseMeta({ name: "", loading: false, error: "Could not load course." });
+  }
+}
+
 
 
 function onPickAnswer(qIndex, optionIndex) {
@@ -75,14 +98,11 @@ function onPickAnswer(qIndex, optionIndex) {
 }
 
 
-
-
-// NEW – strip headers/bold markers; normalize bullets
 function sanitizeSummary(markdown) {
   return String(markdown || "")
-    .replace(/^#{1,6}\s*/gm, "")   // remove leading ### etc
-    .replace(/\*\*/g, "")          // remove bold markers
-    .replace(/^\s*[-*]\s+/gm, "• ")// convert -/* bullets to •
+    .replace(/^#{1,6}\s*/gm, "")   
+    .replace(/\*\*/g, "")          
+    .replace(/^\s*[-*]\s+/gm, "• ")
 }
 
 function parseDataArray(maybeString) {
@@ -111,7 +131,7 @@ function formatNiceDate(iso) {
     return s[(v - 20) % 10] || s[v] || s[0];
   };
 
-  const month = d.toLocaleString("en-US", { month: "short" }); // e.g., "Nov"
+  const month = d.toLocaleString("en-US", { month: "short" }); 
   const year = d.getFullYear();
 
   let h = d.getHours();
@@ -190,7 +210,7 @@ function formatNiceDate(iso) {
   }
 }
 
-// NEW
+
 async function generateSummary() {
   if (!courseId) return;
   setSummary((s) => ({ ...s, error: "" }));
@@ -213,7 +233,6 @@ async function generateSummary() {
 }
 
 
-// ✅ NEW: GET /courses/:courseId/flashcards
 async function fetchFlashcards() {
   if (!courseId) return;
   setFc((s) => ({ ...s, loading: true, error: "" }));
@@ -235,7 +254,7 @@ async function fetchFlashcards() {
   }
 }
 
-// ✅ NEW: POST /courses/:courseId/flashcards
+
 async function generateFlashcards() {
   if (!courseId) return;
   setFc((s) => ({ ...s, generating: true, error: "" }));
@@ -263,7 +282,7 @@ async function fetchPastQuizzes() {
     const items = (payload.quizzes || []).map(q => ({
       quiz_id: q.quiz_id,
       quiz_title: q.quiz_title,
-      created_at: q.created_at,          // ISO8601 string from API
+      created_at: q.created_at,          
       correct_count: q.correct_count ?? null
     }));
     setPast({ items, loading: false, error: "" });
@@ -288,7 +307,7 @@ async function fetchQuizDetail(quizId) {
 
 
 function openPastQuiz(quiz) {
-  setSelectedQuiz(quiz);          // keeps {quiz_id, quiz_title, ...}
+  setSelectedQuiz(quiz);          
   fetchQuizDetail(quiz.quiz_id);
 }
 function closeModal() {
@@ -306,7 +325,7 @@ async function createQuizAndLoad() {
   setScoreBanner("");
 
   try {
-    // 1) Create quiz
+  
     const res = await fetch(`${API_BASE}/courses/${encodeURIComponent(courseId)}/quiz`, {
       method: "POST"
     });
@@ -314,7 +333,7 @@ async function createQuizAndLoad() {
     const json = await res.json();
     const created = parseMaybeJson(json.data) || {};
 
-    // robustly pull quiz_id
+  
     const quizId =
       created.quiz_id ??
       created.id ??
@@ -322,7 +341,7 @@ async function createQuizAndLoad() {
 
     if (!quizId) throw new Error("quiz_id missing in create response");
 
-    // 2) Fetch the created quiz
+ 
     const res2 = await fetch(`${API_BASE}/quizzes/${encodeURIComponent(quizId)}`);
     if (!res2.ok) throw new Error(`HTTP ${res2.status}`);
     const json2 = await res2.json();
@@ -365,7 +384,6 @@ async function submitNewQuiz() {
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const json = await res.json();
 
-    // Your API returns correct_count inside data (sometimes as string)
     const data = parseMaybeJson(json.data) || {};
     const cc = typeof data.correct_count === "number" ? data.correct_count : null;
 
@@ -373,9 +391,6 @@ async function submitNewQuiz() {
       typeof cc === "number" ? `You scored ${cc}/10` : "Submitted! Score recorded."
     );
 
-    // Jump to Past Quizzes and refresh
-    // setQuizView("past");
-    // await fetchPastQuizzes();
 
     // Optional: clear current quiz selections
     setAnswers({});
@@ -393,7 +408,7 @@ async function submitNewQuiz() {
 
 useEffect(() => {
   if (activeSection === "SUMMARY") {
-    fetchSummary("short");  // default selection
+    fetchSummary("short"); 
   }
 
    if (activeSection === "FLASHCARD") {
@@ -407,12 +422,9 @@ useEffect(() => {
 // eslint-disable-next-line react-hooks/exhaustive-deps
 }, [activeSection, quizView, courseId]);
 
-// useEffect(() => {
-//   if (activeSection === "flashcard") {
-//     fetchFlashcards();
-//   }
-//   // eslint-disable-next-line react-hooks/exhaustive-deps
-// }, [activeSection, courseId]);
+useEffect(() => {
+  fetchCourseMeta();
+}, [courseId]);
 
 
   return (
@@ -429,9 +441,17 @@ useEffect(() => {
           padding: "40px",
         }}
       >
-        <h1 style={{ fontSize: "2rem", fontWeight: "700", color: "#1f2937", marginBottom: 20 }}>
+        {/* <h1 style={{ fontSize: "2rem", fontWeight: "700", color: "#1f2937", marginBottom: 20 }}>
           📘 Study Content Page
-        </h1>
+        </h1> */}
+     <h1
+      className="cursiveTitle"
+      style={{ fontSize: "2rem", fontWeight: 700, color: "#1f2937", marginBottom: 20 }}
+    >
+      📘 {courseMeta.name || "Study Content"}
+    </h1>
+
+
 
         {/* --- Section Tabs --- */}
         <div style={{ display: "flex", gap: "20px", marginBottom: "30px" }}>
@@ -742,76 +762,7 @@ useEffect(() => {
 
 
 
-        {/* {activeSection === "flashcard" && (
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "repeat(auto-fit,minmax(250px,1fr))",
-              gap: "20px",
-              width: "100%",
-              maxWidth: "900px",
-              marginTop: "10px",
-            }}
-          >
-            {flashcards.map((card, index) => (
-              <div key={index} onClick={() => handleFlip(index)} style={{ perspective: "1000px" }}>
-                <div
-                  style={{
-                    position: "relative",
-                    width: "100%",
-                    height: "180px",
-                    textAlign: "center",
-                    transition: "transform 0.8s",
-                    transformStyle: "preserve-3d",
-                    transform: flippedCards[index] ? "rotateY(180deg)" : "rotateY(0deg)",
-                  }}
-                >
-                 
-                  <div
-                    style={{
-                      position: "absolute",
-                      width: "100%",
-                      height: "100%",
-                      backfaceVisibility: "hidden",
-                      backgroundColor: "#2563eb",
-                      color: "white",
-                      borderRadius: "12px",
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      padding: "20px",
-                      fontSize: "1rem",
-                      boxShadow: "0 4px 10px rgba(0,0,0,0.1)",
-                    }}
-                  >
-                    {card.q}
-                  </div>
-                  
-                  <div
-                    style={{
-                      position: "absolute",
-                      width: "100%",
-                      height: "100%",
-                      backfaceVisibility: "hidden",
-                      backgroundColor: "#f3f4f6",
-                      color: "#111827",
-                      borderRadius: "12px",
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      padding: "20px",
-                      fontSize: "1rem",
-                      transform: "rotateY(180deg)",
-                      boxShadow: "0 4px 10px rgba(0,0,0,0.1)",
-                    }}
-                  >
-                    {card.a}
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        )} */}
+    
 
         {/* ---------- QUIZ SECTION ---------- */}
         {activeSection === "QUIZ" && (
@@ -994,64 +945,11 @@ useEffect(() => {
                     {submitting ? "Submitting…" : "Submit Quiz"}
                   </button>
 
-                  {/* <button
-                    style={{
-                      backgroundColor: "#2563eb",
-                      color: "white",
-                      padding: "10px 20px",
-                      border: "none",
-                      borderRadius: "6px",
-                      fontWeight: "600",
-                      marginTop: "6px",
-                      cursor: "pointer"
-                    }}
-                  >
-                    Submit Quiz
-                  </button> */}
+                
                 </>
               )}
             </>
           )}
-
-
-
-            {/* {quizView === "new" && (
-              <>
-                <h2 style={{ marginBottom: "10px" }}>🧠 Quiz (10 Questions)</h2>
-                {quizQuestions.map((q) => (
-                  <div key={q.id} style={{ marginBottom: "15px", borderBottom: "1px solid #e5e7eb" }}>
-                    <p style={{ fontWeight: "600" }}>{q.question}</p>
-                    <ul style={{ listStyle: "none", paddingLeft: 0 }}>
-                      {q.options.map((opt, idx) => (
-                        <li key={idx}>
-                          <label>
-                            <input type="radio" name={`q${q.id}`} value={opt} style={{ marginRight: "6px" }} />
-                            {opt}
-                          </label>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                ))}
-                <button
-                  style={{
-                    backgroundColor: "#2563eb",
-                    color: "white",
-                    padding: "10px 20px",
-                    border: "none",
-                    borderRadius: "6px",
-                    fontWeight: "600",
-                    marginTop: "10px",
-                    cursor: "pointer",
-                  }}
-                >
-                  Submit Quiz
-                </button>
-              </>
-            )} */}
-
-
-
 
 
             {/* Past Quizzes */}
@@ -1093,47 +991,7 @@ useEffect(() => {
           )}
 
 
-            {/* {quizView === "past" && (
-              <div style={{ display: "flex", flexDirection: "column", gap: "15px", maxHeight: "400px", overflowY: "auto" }}>
-                {pastQuizzes.map((quiz) => (
-                  <div
-                    key={quiz.id}
-                    style={{
-                      display: "flex",
-                      justifyContent: "space-between",
-                      alignItems: "center",
-                      backgroundColor: "#f9fafb",
-                      padding: "15px",
-                      borderRadius: "8px",
-                      border: "1px solid #e5e7eb",
-                    }}
-                  >
-                    <div>
-                      <h3 style={{ margin: "0 0 4px 0" }}>{quiz.title}</h3>
-                      <p style={{ color: "#6b7280", margin: 0, fontSize: "0.9rem" }}>{quiz.date}</p>
-                    </div>
-                    <div style={{ display: "flex", alignItems: "center", gap: "15px" }}>
-                      <span style={{ fontWeight: "600", color: "#2563eb" }}>{quiz.score}</span>
-                      <button
-                        onClick={() => openQuiz(quiz)}
-                        style={{
-                          backgroundColor: "#2563eb",
-                          color: "white",
-                          border: "none",
-                          borderRadius: "6px",
-                          padding: "6px 12px",
-                          cursor: "pointer",
-                        }}
-                      >
-                        View
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )} */}
-
-
+      
           </div>
         )}
 

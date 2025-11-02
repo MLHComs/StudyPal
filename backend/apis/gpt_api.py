@@ -1,4 +1,3 @@
-# backend/apis/gpt_api.py
 import os
 import json
 import pathlib
@@ -19,7 +18,6 @@ from pptx import Presentation
 from models import Course, Summary
 from fastapi import Query
 
-# OpenAI for AI-powered summarization
 from openai import OpenAI
 
 load_dotenv()
@@ -115,8 +113,6 @@ def _derive_course_name(stems: List[str], override: Optional[str]) -> str:
 # --- POST /addcourse ---
 # gpt_api.py
 from fastapi import Request, File, Form, UploadFile
-# from typing import Optional, List
-# ... keep your existing imports (_SESSION_FACTORY, Course, _extract_many, _derive_course_name, _success/_fail)
 
 # POST /addcourse
 async def ingest_and_store_endpoint(
@@ -198,74 +194,6 @@ async def ingest_and_store_endpoint(
     return _fail("Provide files (one or many) as form-data OR JSON {content, course_name, user_id}.")
 
 
-
-# def ingest_and_store_endpoint(
-#     files: Optional[List[UploadFile]] = File(default=None),
-#     course_name: Optional[str] = Form(default=None),
-#     user_id: Optional[int] = Form(default=None),
-#     body: Optional[dict] = Body(default=None),
-# ):
-#     if _SESSION_FACTORY is None:
-#         return _fail("Server misconfigured: no DB session factory is set.")
-
-#     def _get_user_id_from_body(b: Optional[dict]) -> Optional[int]:
-#         if not b: return None
-#         uid = b.get("user_id")
-#         try:
-#             return int(uid) if uid is not None else None
-#         except Exception:
-#             return None
-        
-
-#     try:
-#         if files is not None and len(files) > 0:
-#             extracted = _extract_many(files)
-#             stems = [s for s, _ in extracted]
-#             combined_content = "\n\n".join(
-#                 [f"=== FILE: {s} ===\n{t}" for s, t in extracted]
-#             ).strip()
-#             if not combined_content:
-#                 return _fail("No readable text found in uploaded files.")
-
-#             final_name = _derive_course_name(stems, course_name)
-#             with _SESSION_FACTORY() as db:
-#                 row = Course(course_name=final_name, course_content=combined_content)
-#                 db.add(row)
-#                 db.flush()
-#                 new_id = row.course_id
-#                 db.commit()
-
-#             return _success(
-#                 f"Saved 1 course(s): {final_name}=>id={new_id}",
-#                 "Stored concatenated text from uploaded files into a single course."
-#             )
-
-#         elif body and isinstance(body, dict) and body.get("content"):
-#             cname = (body.get("course_name") or "Untitled")[:255]
-#             content = str(body["content"]).strip()
-#             if not content:
-#                 return _fail("Content is empty.")
-
-#             with _SESSION_FACTORY() as db:
-#                 row = Course(course_name=cname, course_content=content, user_id=user_id,)
-#                 db.add(row)
-#                 db.flush()
-#                 new_id = row.course_id
-#                 db.commit()
-
-#             return _success(
-#                 f"Saved 1 course(s): {cname}=>id={new_id}",
-#                 "Stored raw text into courses table."
-#             )
-
-#         else:
-#             return _fail("Provide 'files' (one or many) OR JSON {content, course_name}.")
-
-#     except HTTPException:
-#         raise
-#     except Exception as e:
-#         return _fail(f"Ingestion failed: {type(e).__name__}")
-
 # --- GET /courses ---
 
 def list_courses(
@@ -311,32 +239,6 @@ def list_courses(
 
         return _success(json.dumps(payload, ensure_ascii=False), message=msg)
     
-
-# def list_courses(limit: int = 25, offset: int = 0, q: Optional[str] = None):
-    if _SESSION_FACTORY is None:
-        return _fail("Server misconfigured: no DB session factory is set.")
-
-    with _SESSION_FACTORY() as db:
-        stmt = select(
-            Course.course_id,
-            Course.course_name,
-            func.length(Course.course_content).label("content_len"),
-            Course.user_id, 
-        )
-        if q:
-            from sqlalchemy import func as _func
-            stmt = stmt.where(_func.lower(Course.course_name).like(f"%{q.lower()}%"))
-        stmt = stmt.order_by(Course.course_id.desc()).offset(offset).limit(limit)
-
-        rows = db.execute(stmt).all()
-        payload = [
-            {"course_id": r.course_id, "course_name": r.course_name, "content_len": int(r.content_len or 0),  "user_id": r.user_id, }
-            for r in rows
-        ]
-        return _success(json.dumps(payload, ensure_ascii=False), message=f"Fetched {len(payload)} course(s).")
-
-
-
 # --- GET /courses/{course_id} ---
 def get_course(course_id: int):
     if _SESSION_FACTORY is None:
@@ -344,21 +246,27 @@ def get_course(course_id: int):
 
     with _SESSION_FACTORY() as db:
         row = db.execute(
-            select(Course.course_id, Course.course_name, Course.course_content)
-            .where(Course.course_id == course_id)
+            select(
+                Course.course_id,
+                Course.course_name,
+                Course.course_content,
+                Course.user_id,        
+            ).where(Course.course_id == course_id)
         ).one_or_none()
 
         if not row:
             return _fail(f"Course id={course_id} not found")
 
-        course_id_db, course_name_db, content, user_id_db = row
+        m = row._mapping
         payload = {
-            "course_id": course_id_db,
-            "course_name": course_name_db,
-            "course_content": content,
-            "user_id": user_id_db,
+            "course_id": m[Course.course_id],
+            "course_name": m[Course.course_name],
+            "course_content": m[Course.course_content],
+            "user_id": m[Course.user_id],
         }
-        return _success(json.dumps(payload, ensure_ascii=False), message=f"Fetched course id={course_id}.")
+        return _success(json.dumps(payload, ensure_ascii=False),
+                        message=f"Fetched course id={course_id}.")
+
 
 # --- POST /courses/{course_id}/summary ---
 def generate_course_summary(course_id: int, body: dict = Body(...)):

@@ -2,7 +2,7 @@ import React from 'react';
 import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
 import './App.css';
 
-import Login from './Login';
+// import Login from './Login';
 import SignupLogin from './SignupLogin';
 import Chatbot from './Chatbot';
 import Dashboard from './Dashboard';

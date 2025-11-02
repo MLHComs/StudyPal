@@ -337,8 +337,8 @@ def submit_quiz_answers(
         cleaned.append((q_index, sel_idx))
 
     updated = 0
-    missing = []      # question_index values not found
-    correct = 0       # how many answers are correct (optional stat)
+    missing = []     
+    correct = 0       
 
     with _SESSION_FACTORY() as db:
         for q_index, sel_idx in cleaned:
@@ -356,7 +356,7 @@ def submit_quiz_answers(
                 continue
 
             qid, correct_idx = row
-            # write student's choice (overwrite allowed)
+           
             db.execute(
                 update(QuizQuestion)
                 .where(QuizQuestion.question_id == qid)
@@ -366,13 +366,13 @@ def submit_quiz_answers(
             if sel_idx == correct_idx:
                 correct += 1
 
-        # >>> NEW: mark the quiz as submitted
+     
         quiz_row = db.get(Quiz, quiz_id)
         if not quiz_row:
             return _fail(f"Quiz {quiz_id} not found.")
         quiz_row.is_submitted = True
         quiz_row.correct_count = correct
-        # <<<
+      
 
         db.commit()
 

@@ -1,4 +1,3 @@
-# backend/apis/user_api.py
 import json
 from typing import Optional, Callable
 from sqlalchemy import select

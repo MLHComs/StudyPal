@@ -1,15 +1,13 @@
 import React, { useEffect, useState } from "react";
 import styles from "./css/StickyHeader.module.css";
 
-/** Try to normalize different API response shapes */
 function normalizeUser(json) {
   if (!json) return null;
   let data = json.data ?? json;
   if (typeof data === "string") {
     try { data = JSON.parse(data); } catch { /* noop */ }
   }
-  // Support shapes like:
-  // { user_id, user_firstname, user_lastname } or { user: { ... } }
+
   const u = data.user ?? data;
   if (!u) return null;
   return {
@@ -20,13 +18,7 @@ function normalizeUser(json) {
   };
 }
 
-/**
- * Props:
- * - userId: number|string (required)
- * - onLogout: () => void (required)
- * - fetchUrl?: custom URL if your user endpoint differs
- *   Defaults: tries /users/:id first, falls back to /user?user_id=:id
- */
+
 export default function StickyHeader({ userId, onLogout, fetchUrl }) {
   const [user, setUser] = useState(null);
   const [state, setState] = useState({ loading: true, error: "" });
