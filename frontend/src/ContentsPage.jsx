@@ -32,6 +32,15 @@ function ContentsPage() {
   // NEW
 const [generating, setGenerating] = useState(false);
 
+// ✅ NEW: flashcards state bundle
+const [fc, setFc] = useState({
+  items: [],        // [{flashcard_id, card_index, front_text, back_text}, ...]
+  loading: false,
+  error: "",
+  generating: false,
+});
+
+
 // NEW – strip headers/bold markers; normalize bullets
 function sanitizeSummary(markdown) {
   return String(markdown || "")
@@ -40,6 +49,13 @@ function sanitizeSummary(markdown) {
     .replace(/^\s*[-*]\s+/gm, "• ")// convert -/* bullets to •
 }
 
+function parseDataArray(maybeString) {
+  if (Array.isArray(maybeString)) return maybeString;
+  if (typeof maybeString === "string") {
+    try { return JSON.parse(maybeString); } catch {}
+  }
+  return [];
+}
 
   // ---------- Dummy Data ----------
   // const summaries = {
@@ -49,18 +65,18 @@ function sanitizeSummary(markdown) {
   //   long: "Long summary: Amazon EMR (Elastic MapReduce) is a managed cluster platform for processing massive datasets using frameworks like Apache Hadoop and Apache Spark.",
   // };
 
-  const flashcards = [
-    { q: "What does EMR stand for?", a: "Elastic MapReduce" },
-    { q: "What is Amazon S3 used for?", a: "Object storage service" },
-    { q: "Define EC2.", a: "Elastic Compute Cloud for virtual servers" },
-    { q: "Purpose of AWS Lambda?", a: "Serverless computing" },
-    { q: "What is VPC?", a: "Virtual Private Cloud" },
-    { q: "What is IAM?", a: "Identity and Access Management" },
-    { q: "Use of CloudFront?", a: "Content Delivery Network (CDN)" },
-    { q: "What is DynamoDB?", a: "NoSQL managed database" },
-    { q: "Use of CloudWatch?", a: "Monitoring AWS resources" },
-    { q: "Purpose of Route 53?", a: "DNS and domain management" },
-  ];
+  // const flashcards = [
+  //   { q: "What does EMR stand for?", a: "Elastic MapReduce" },
+  //   { q: "What is Amazon S3 used for?", a: "Object storage service" },
+  //   { q: "Define EC2.", a: "Elastic Compute Cloud for virtual servers" },
+  //   { q: "Purpose of AWS Lambda?", a: "Serverless computing" },
+  //   { q: "What is VPC?", a: "Virtual Private Cloud" },
+  //   { q: "What is IAM?", a: "Identity and Access Management" },
+  //   { q: "Use of CloudFront?", a: "Content Delivery Network (CDN)" },
+  //   { q: "What is DynamoDB?", a: "NoSQL managed database" },
+  //   { q: "Use of CloudWatch?", a: "Monitoring AWS resources" },
+  //   { q: "Purpose of Route 53?", a: "DNS and domain management" },
+  // ];
 
   const quizQuestions = Array.from({ length: 10 }, (_, i) => ({
     id: i + 1,
@@ -150,12 +166,65 @@ async function generateSummary() {
   }
 }
 
+
+// ✅ NEW: GET /courses/:courseId/flashcards
+async function fetchFlashcards() {
+  if (!courseId) return;
+  setFc((s) => ({ ...s, loading: true, error: "" }));
+  try {
+    const res = await fetch(`${API_BASE}/courses/${encodeURIComponent(courseId)}/flashcards`);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const json = await res.json();
+
+    const items = parseDataArray(json.data).map((r) => ({
+      id: r.flashcard_id ?? `${r.card_index}`,
+      index: r.card_index,
+      front: r.front_text ?? "",
+      back: r.back_text ?? "",
+    }));
+
+    setFc({ items, loading: false, error: "", generating: false });
+  } catch (e) {
+    setFc((s) => ({ ...s, loading: false, error: "Could not fetch flashcards. Please try again." }));
+  }
+}
+
+// ✅ NEW: POST /courses/:courseId/flashcards
+async function generateFlashcards() {
+  if (!courseId) return;
+  setFc((s) => ({ ...s, generating: true, error: "" }));
+  try {
+    const res = await fetch(`${API_BASE}/courses/${encodeURIComponent(courseId)}/flashcards`, {
+      method: "POST",
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    // After generation, fetch the new set
+    await fetchFlashcards();
+  } catch (e) {
+    setFc((s) => ({ ...s, generating: false, error: "Could not generate flashcards. Please try again." }));
+  }
+}
+
+
 useEffect(() => {
   if (activeSection === "summary") {
     fetchSummary("short");  // default selection
   }
+
+   if (activeSection === "flashcard") {
+    fetchFlashcards();
+  }
+
 // eslint-disable-next-line react-hooks/exhaustive-deps
 }, [activeSection, courseId]);
+
+// useEffect(() => {
+//   if (activeSection === "flashcard") {
+//     fetchFlashcards();
+//   }
+//   // eslint-disable-next-line react-hooks/exhaustive-deps
+// }, [activeSection, courseId]);
+
 
   return (
     <div className={styles.page}>
@@ -340,6 +409,151 @@ useEffect(() => {
 
         {/* ---------- FLASHCARD SECTION ---------- */}
         {activeSection === "flashcard" && (
+            <div
+              style={{
+                width: "100%",
+                maxWidth: "900px",
+                backgroundColor: "white",
+                padding: "20px",
+                borderRadius: "12px",
+                boxShadow: "0 4px 12px rgba(0,0,0,0.1)",
+              }}
+            >
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+                <h2 style={{ margin: 0 }}>🗂️ Flashcards</h2>
+                {!!fc.items.length && (
+                  <button
+                    onClick={generateFlashcards}
+                    disabled={fc.generating}
+                    style={{
+                      backgroundColor: "#2563eb",
+                      color: "white",
+                      border: "none",
+                      borderRadius: 6,
+                      padding: "8px 12px",
+                      cursor: "pointer",
+                      fontWeight: 600,
+                      opacity: fc.generating ? 0.85 : 1
+                    }}
+                    title="Re-generate (will replace existing cards)"
+                  >
+                    {fc.generating ? "Generating…" : "Regenerate"}
+                  </button>
+                )}
+              </div>
+
+              {fc.loading && <div style={{ color: "#374151" }}>Fetching flashcards…</div>}
+
+              {!fc.loading && fc.error && (
+                <div style={{ color: "#b91c1c", fontWeight: 600 }}>{fc.error}</div>
+              )}
+
+              {!fc.loading && !fc.error && fc.items.length === 0 && (
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 12,
+                    background: "#f9fafb",
+                    border: "1px solid #e5e7eb",
+                    padding: 16,
+                    borderRadius: 8,
+                  }}
+                >
+                  <span>No flashcards found for this course.</span>
+                  <button
+                    onClick={generateFlashcards}
+                    disabled={fc.generating}
+                    style={{
+                      backgroundColor: "#2563eb",
+                      color: "white",
+                      border: "none",
+                      borderRadius: 6,
+                      padding: "8px 14px",
+                      cursor: "pointer",
+                      fontWeight: 600,
+                      opacity: fc.generating ? 0.85 : 1
+                    }}
+                  >
+                    {fc.generating ? "Generating…" : "Generate"}
+                  </button>
+                </div>
+              )}
+
+              {!fc.loading && !fc.error && fc.items.length > 0 && (
+                <div
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns: "repeat(auto-fit,minmax(250px,1fr))",
+                    gap: 20,
+                    marginTop: 10,
+                  }}
+                >
+                  {fc.items.map((card, idx) => (
+                    <div key={card.id ?? idx} onClick={() => handleFlip(idx)} style={{ perspective: "1000px" }}>
+                      <div
+                        style={{
+                          position: "relative",
+                          width: "100%",
+                          height: 180,
+                          textAlign: "center",
+                          transition: "transform 0.8s",
+                          transformStyle: "preserve-3d",
+                          transform: flippedCards[idx] ? "rotateY(180deg)" : "rotateY(0deg)",
+                        }}
+                      >
+                        {/* Front */}
+                        <div
+                          style={{
+                            position: "absolute",
+                            inset: 0,
+                            backfaceVisibility: "hidden",
+                            backgroundColor: "#2563eb",
+                            color: "white",
+                            borderRadius: 12,
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            padding: 20,
+                            fontSize: "1rem",
+                            boxShadow: "0 4px 10px rgba(0,0,0,0.1)",
+                          }}
+                          title={`Card #${card.index}`}
+                        >
+                          {card.front}
+                        </div>
+
+                        {/* Back */}
+                        <div
+                          style={{
+                            position: "absolute",
+                            inset: 0,
+                            backfaceVisibility: "hidden",
+                            backgroundColor: "#f3f4f6",
+                            color: "#111827",
+                            borderRadius: 12,
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            padding: 20,
+                            fontSize: "1rem",
+                            transform: "rotateY(180deg)",
+                            boxShadow: "0 4px 10px rgba(0,0,0,0.1)",
+                          }}
+                        >
+                          {card.back}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+
+
+        {/* {activeSection === "flashcard" && (
           <div
             style={{
               display: "grid",
@@ -363,7 +577,7 @@ useEffect(() => {
                     transform: flippedCards[index] ? "rotateY(180deg)" : "rotateY(0deg)",
                   }}
                 >
-                  {/* Front */}
+                 
                   <div
                     style={{
                       position: "absolute",
@@ -383,7 +597,7 @@ useEffect(() => {
                   >
                     {card.q}
                   </div>
-                  {/* Back */}
+                  
                   <div
                     style={{
                       position: "absolute",
@@ -408,7 +622,7 @@ useEffect(() => {
               </div>
             ))}
           </div>
-        )}
+        )} */}
 
         {/* ---------- QUIZ SECTION ---------- */}
         {activeSection === "quiz" && (
